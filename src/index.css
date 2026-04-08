@@ -1,0 +1,44 @@
+@import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=Poppins:wght@300;400;500;600;700&family=Mulish:wght@400;600;700;800&family=Bebas+Neue&family=Space+Mono&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Poppins", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Archivo Black", sans-serif;
+  --font-mono: "Mulish", ui-monospace, SFMono-Regular, monospace;
+  --font-bebas: "Bebas Neue", sans-serif;
+  --font-space: "Space Mono", monospace;
+
+  --color-bg-dark: #0f0d0b;
+  --color-bg-mid: #1a1410;
+  --color-bg-card: #221c15;
+  --color-bg-card2: #1e1812;
+  --color-primary-orange: #f97316;
+  --color-primary-dark: #ea580c;
+  --color-gold: #f97316;
+  --color-gold-light: #fb923c;
+  --color-text-white: #fdf5ee;
+  --color-text-muted: #b8a898;
+  --color-text-dim: #7a6a5a;
+  --color-border-custom: rgba(249,115,22,0.12);
+  --color-border-red: rgba(249,115,22,0.4);
+}
+
+@layer base {
+  body {
+    @apply bg-bg-dark text-text-white font-sans antialiased;
+  }
+
+  h1, h2, h3, h4 {
+    @apply font-display tracking-tight leading-[1.05];
+  }
+}
+
+.noise-overlay {
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.035'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.4;
+}
+
