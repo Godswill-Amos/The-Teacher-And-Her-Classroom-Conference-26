@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Calendar, 
@@ -13,103 +13,583 @@ import {
   ChevronDown, 
   ShieldCheck, 
   ArrowRight,
-  MessageCircle
+  MessageCircle,
+  X,
+  CreditCard,
+  Zap,
+  Lock,
+  Shield
 } from 'lucide-react';
+
+declare const PaystackPop: any;
+declare const FlutterwaveCheckout: any;
+
+// --- Global Logic ---
+const EARLY_BIRD_END = new Date('2026-06-30T23:59:59');
+const EARLY_BIRD_PRICE = 7000;
+const REGULAR_PRICE = 10000;
+
+function getCurrentPrice() {
+  return new Date() < EARLY_BIRD_END ? EARLY_BIRD_PRICE : REGULAR_PRICE;
+}
+
+function formatPrice(amount: number) {
+  return '₦' + amount.toLocaleString('en-NG');
+}
+
+// --- Checkout Modal ---
+
+const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
+  const [selectedGateway, setSelectedGateway] = useState<'paystack' | 'flutterwave'>('paystack');
+  const [formData, setFormData] = useState({ fullName: '', email: '', phone: '' });
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [cancelMsg, setCancelMsg] = useState(false);
+  const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
+
+  const price = getCurrentPrice();
+  const formatted = formatPrice(price);
+  const isEarlyBird = new Date() < EARLY_BIRD_END;
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({ ...formData, [e.target.id]: e.target.value });
+  };
+
+  const captureAbandonedLead = async (status: string, reference?: string) => {
+    try {
+      await fetch('/api/capture-lead', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...formData,
+          name: formData.fullName,
+          gateway: selectedGateway,
+          price,
+          status,
+          reference,
+          timestamp: new Date().toISOString(),
+          source: 'conference_2026_modal_checkout'
+        })
+      });
+    } catch (e) {
+      // Fail silently
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.fullName || formData.fullName.length < 2) return setError('Please enter your full name.');
+    if (!formData.email || !formData.email.includes('@')) return setError('Please enter a valid email address.');
+    if (!formData.phone || formData.phone.length < 8) return setError('Please enter a valid phone number.');
+
+    setIsLoading(true);
+    setError(null);
+    setCancelMsg(false);
+
+    await captureAbandonedLead('checkout_started');
+
+    if (selectedGateway === 'paystack') {
+      initiatePaystack();
+    } else {
+      initiateFlutterwave();
+    }
+  };
+
+  const initiatePaystack = () => {
+    if (typeof PaystackPop === 'undefined') {
+      setError('Payment system is loading. Please try again in a moment.');
+      setIsLoading(false);
+      return;
+    }
+
+    const handler = PaystackPop.setup({
+      key: 'PASTE_YOUR_PAYSTACK_PUBLIC_KEY_HERE',
+      email: formData.email,
+      amount: price * 100,
+      currency: 'NGN',
+      ref: 'TAHCC_' + Date.now(),
+      callback: (response: any) => {
+        handlePaymentSuccess(response.reference, 'paystack');
+      },
+      onClose: () => {
+        handlePaymentCancelled();
+      }
+    });
+    handler.openIframe();
+  };
+
+  const initiateFlutterwave = () => {
+    if (typeof FlutterwaveCheckout === 'undefined') {
+      setError('Payment system is loading. Please try again in a moment.');
+      setIsLoading(false);
+      return;
+    }
+
+    FlutterwaveCheckout({
+      public_key: 'PASTE_YOUR_FLUTTERWAVE_PUBLIC_KEY_HERE',
+      tx_ref: 'TAHCC_FW_' + Date.now(),
+      amount: price,
+      currency: 'NGN',
+      payment_options: 'card, ussd, banktransfer',
+      customer: {
+        email: formData.email,
+        phone_number: formData.phone,
+        name: formData.fullName
+      },
+      customizations: {
+        title: 'The Teacher And Her Classroom Conference 2026',
+        description: 'Conference Registration',
+        logo: 'SGE_Logo.png'
+      },
+      callback: (response: any) => {
+        if (response.status === 'successful') {
+          handlePaymentSuccess(response.transaction_id, 'flutterwave');
+        }
+      },
+      onclose: () => {
+        handlePaymentCancelled();
+      }
+    });
+  };
+
+  const handlePaymentSuccess = async (reference: string, gateway: string) => {
+    await captureAbandonedLead('paid', reference);
+    window.location.href = `thankyou.html?ref=${reference}&gateway=${gateway}`;
+  };
+
+  const handlePaymentCancelled = () => {
+    setIsLoading(false);
+    setCancelMsg(true);
+    setTimeout(() => setCancelMsg(false), 5000);
+  };
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 md:p-6">
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+            className="absolute inset-0 bg-bg-dark/95 backdrop-blur-sm"
+          />
+          
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+            className="relative bg-bg-card border border-border-custom w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-xl shadow-2xl flex flex-col lg:grid lg:grid-cols-[380px_1fr]"
+          >
+            <button 
+              onClick={onClose}
+              className="absolute top-4 right-4 text-text-muted hover:text-white transition-colors z-20"
+            >
+              <X className="w-6 h-6" />
+            </button>
+
+            {/* Order Summary - Top on mobile, Left on desktop */}
+            <div className="bg-bg-section border-r border-border-custom order-1 lg:order-1">
+              {/* Mobile Toggle Header */}
+              <button 
+                type="button"
+                onClick={() => setIsSummaryExpanded(!isSummaryExpanded)}
+                className="w-full p-6 flex lg:hidden items-center justify-between border-b border-border-custom bg-bg-section/50"
+              >
+                <div className="flex items-center gap-2 text-primary-orange font-mono text-[10px] font-bold tracking-widest uppercase">
+                  <Zap className="w-3 h-3" /> Order Summary
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-text-white font-bold">{formatted}</span>
+                  <ChevronDown className={`w-4 h-4 text-text-muted transition-transform ${isSummaryExpanded ? 'rotate-180' : ''}`} />
+                </div>
+              </button>
+
+              <div className={`${isSummaryExpanded ? 'block' : 'hidden'} lg:block p-8`}>
+                <div className="hidden lg:flex items-center gap-2 text-primary-orange font-mono text-[10px] font-bold tracking-widest uppercase mb-6">
+                  <Zap className="w-3 h-3" /> Order Summary
+                </div>
+                <h3 className="text-xl text-text-white mb-6 font-display">Your Registration</h3>
+                
+                <div className="space-y-4 mb-8">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-text-white">Conference 2026 Ticket</span>
+                    <span className="font-bold text-primary-orange">{formatted}</span>
+                  </div>
+                  {[
+                    "Session Replays",
+                    "Participation Certificate",
+                    "Resource Materials",
+                    "Community Access"
+                  ].map((item, i) => (
+                    <div key={i} className="flex justify-between text-[13px] text-text-muted">
+                      <span>{item}</span>
+                      <span className="font-mono text-[10px] font-bold uppercase tracking-wider">Included</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="pt-6 border-t border-border-custom">
+                  <div className="flex justify-between items-center">
+                    <span className="text-lg text-text-white">Total</span>
+                    <span className="text-3xl text-primary-orange font-display">{formatted}</span>
+                  </div>
+                  <p className="text-[11px] text-text-dim mt-2 text-right">
+                    {isEarlyBird ? 'Early bird price. Goes up July 1st.' : 'Standard registration price'}
+                  </p>
+                </div>
+
+                <div className="mt-10 space-y-3">
+                  <div className="bg-bg-card border border-primary-orange/20 rounded-lg p-4 flex items-start gap-3">
+                    <Shield className="w-5 h-5 text-primary-orange shrink-0" />
+                    <div>
+                      <div className="text-[11px] font-bold text-text-white uppercase tracking-wider">Secure Payment</div>
+                      <div className="text-[10px] text-text-muted">SSL encrypted checkout</div>
+                    </div>
+                  </div>
+                  <div className="bg-bg-card border border-primary-orange/20 rounded-lg p-4 flex items-start gap-3">
+                    <Lock className="w-5 h-5 text-primary-orange shrink-0" />
+                    <div>
+                      <div className="text-[11px] font-bold text-text-white uppercase tracking-wider">Safe Checkout</div>
+                      <div className="text-[10px] text-text-muted">Powered by Paystack & Flutterwave</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Checkout Form - Bottom on mobile, Right on desktop */}
+            <div className="p-8 md:p-12 order-2 lg:order-2">
+              <div className="mb-8">
+                <h2 className="text-3xl text-text-white mb-2 font-display">Secure Checkout</h2>
+                <p className="text-sm text-text-muted">Fill in your details below to complete your registration.</p>
+              </div>
+
+              <form onSubmit={handleSubmit} className="space-y-5">
+                <div className="space-y-2">
+                  <label className="block font-mono text-[10px] font-bold text-text-muted uppercase tracking-wider" htmlFor="fullName">Full Name</label>
+                  <input 
+                    type="text" 
+                    id="fullName" 
+                    value={formData.fullName}
+                    onChange={handleInputChange}
+                    placeholder="John Doe" 
+                    className="w-full bg-bg-section border border-primary-orange/20 rounded-md px-4 py-3 text-text-white focus:outline-none focus:border-primary-orange transition-colors"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="block font-mono text-[10px] font-bold text-text-muted uppercase tracking-wider" htmlFor="email">Email Address</label>
+                  <input 
+                    type="email" 
+                    id="email" 
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    placeholder="john@example.com" 
+                    className="w-full bg-bg-section border border-primary-orange/20 rounded-md px-4 py-3 text-text-white focus:outline-none focus:border-primary-orange transition-colors"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="block font-mono text-[10px] font-bold text-text-muted uppercase tracking-wider" htmlFor="phone">Phone Number</label>
+                  <input 
+                    type="tel" 
+                    id="phone" 
+                    value={formData.phone}
+                    onChange={handleInputChange}
+                    placeholder="+234 800 000 0000" 
+                    className="w-full bg-bg-section border border-primary-orange/20 rounded-md px-4 py-3 text-text-white focus:outline-none focus:border-primary-orange transition-colors"
+                  />
+                </div>
+
+                <div className="pt-4">
+                  <label className="block font-mono text-[10px] font-bold text-text-muted uppercase tracking-wider mb-3">Select Payment Method</label>
+                  <div className="grid grid-cols-2 gap-4">
+                    <button 
+                      type="button"
+                      onClick={() => setSelectedGateway('paystack')}
+                      className={`flex items-center justify-center gap-2 p-4 rounded-md border font-mono text-[11px] font-bold tracking-wider transition-all ${selectedGateway === 'paystack' ? 'bg-primary-orange/10 border-primary-orange text-primary-orange' : 'bg-bg-section border-primary-orange/20 text-text-muted hover:border-primary-orange/40'}`}
+                    >
+                      <CreditCard className="w-4 h-4" /> Paystack
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => setSelectedGateway('flutterwave')}
+                      className={`flex items-center justify-center gap-2 p-4 rounded-md border font-mono text-[11px] font-bold tracking-wider transition-all ${selectedGateway === 'flutterwave' ? 'bg-primary-orange/10 border-primary-orange text-primary-orange' : 'bg-bg-section border-primary-orange/20 text-text-muted hover:border-primary-orange/40'}`}
+                    >
+                      <Zap className="w-4 h-4" /> Flutterwave
+                    </button>
+                  </div>
+                </div>
+
+                {error && (
+                  <div className="bg-error/10 border border-error text-error text-xs p-3 rounded-md">
+                    {error}
+                  </div>
+                )}
+
+                <button 
+                  type="submit" 
+                  disabled={isLoading}
+                  className="w-full bg-primary-orange text-white font-mono text-sm font-bold tracking-wider uppercase py-4 rounded-md transition-all hover:bg-primary-dark disabled:opacity-50 flex items-center justify-center gap-3 shadow-lg"
+                >
+                  {isLoading ? (
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <>Complete Purchase <ArrowRight className="w-4 h-4" /></>
+                  )}
+                </button>
+
+                {cancelMsg && (
+                  <div className="text-center text-xs text-primary-orange font-medium animate-pulse">
+                    Payment window closed. Your spot is still waiting.
+                  </div>
+                )}
+
+                <p className="text-[10px] text-text-dim text-center leading-relaxed">
+                  By completing this purchase, you agree to our Terms of Service and Privacy Policy. Your data is processed securely.
+                </p>
+              </form>
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
+  );
+};
 
 // --- Components ---
 
-const AnnouncementBar = () => (
-  <div className="bg-primary-orange text-white text-center py-2.5 px-5 font-mono text-[13px] font-bold tracking-wider sticky top-0 z-50 shadow-md">
-    <span className="md:hidden">🔥 Early Bird ends June 30th</span>
-    <span className="hidden md:inline">
-      🔥 EARLY BIRD ENDS <span className="text-bg-dark bg-white/90 px-1.5 py-0.5 rounded-xs mx-1">JUNE 30TH</span> · LOCK IN YOUR SPOT AT <span className="text-bg-dark bg-white/90 px-1.5 py-0.5 rounded-xs mx-1">₦7,000</span> BEFORE PRICE RISES TO ₦10,000
-    </span>
-  </div>
-);
+const AnnouncementBar = () => {
+  const price = getCurrentPrice();
+  const formatted = formatPrice(price);
+  const isEarlyBird = new Date() < EARLY_BIRD_END;
 
-const Hero = () => (
-  <section className="relative bg-[linear-gradient(160deg,#1a1208_0%,#0f0d0b_50%,#150f08_100%)] pt-10 md:pt-16 pb-14 px-5 text-center overflow-hidden">
-    <div className="absolute top-[-120px] left-1/2 -translate-x-1/2 w-[700px] h-[700px] bg-[radial-gradient(circle,rgba(249,115,22,0.14)_0%,transparent_70%)] pointer-events-none" />
-    
-    <div className="relative z-10">
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="inline-block bg-[rgba(249,115,22,0.18)] border border-border-red text-primary-orange font-mono text-[10px] md:text-[11px] font-bold tracking-[0.14em] uppercase px-4 py-1.5 rounded-sm mb-4 md:mb-6"
-      >
-        Virtual Workshop Edition · August 20–21, 2026
-      </motion.div>
-      
-      <motion.h1 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="text-4xl md:text-6xl lg:text-7xl text-text-white max-w-[860px] mx-auto mb-3 md:mb-4 leading-none"
-      >
-        The Classroom Has <span className="text-primary-orange">Changed.</span> Have You?
-      </motion.h1>
-      
-      <motion.p 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-        className="text-base md:text-xl text-text-muted max-w-[640px] mx-auto mb-6 md:mb-8 font-normal"
-      >
-        Join Nigeria's most practical teacher conference. 2 days to get the tools you need for the modern classroom.
-      </motion.p>
-      
-      <motion.div 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.3 }}
-        className="flex flex-wrap justify-center gap-3 md:gap-5 mb-7 md:mb-9"
-      >
-        {[
-          { icon: Calendar, text: "20th–21st August, 2026" },
-          { icon: Clock, text: "9:00 AM Daily" },
-          { icon: MapPin, text: "Virtual Event" },
-          { icon: Users, text: "3 Expert Speakers" }
-        ].map((item, i) => (
-          <div key={i} className="flex items-center gap-2 font-mono text-[10px] md:text-xs text-text-muted tracking-wider">
-            <div className="w-1.5 h-1.5 bg-primary-orange rounded-full" />
-            {item.text}
-          </div>
-        ))}
-      </motion.div>
-      
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay: 0.4 }}
-      >
-        <a 
-          href="#register" 
-          className="inline-block bg-primary-orange text-white font-mono text-sm font-bold tracking-wider uppercase px-8 md:px-11 py-4 md:py-4.5 rounded-sm transition-all hover:bg-primary-dark hover:-translate-y-0.5 shadow-[0_4px_28px_rgba(249,115,22,0.4)] hover:shadow-[0_8px_36px_rgba(249,115,22,0.55)]"
-        >
-          REGISTER NOW · ₦7,000 EARLY BIRD ↓
-        </a>
-      </motion.div>
-      
-      <p className="mt-5.5 text-xs text-text-dim font-mono">
-        🔒 Secure payment via Flutterwave &nbsp;|&nbsp; Price rises to ₦10,000 on July 1st
-      </p>
+  return (
+    <div className="bg-primary-orange text-white text-center py-2.5 px-5 font-mono text-[13px] font-bold tracking-wider sticky top-0 z-50 shadow-md">
+      <span className="md:hidden">🔥 Early Bird ends June 30th</span>
+      <span className="hidden md:inline">
+        🔥 {isEarlyBird ? 'EARLY BIRD ENDS' : 'REGISTRATION OPEN'} <span className="text-bg-dark bg-white/90 px-1.5 py-0.5 rounded-xs mx-1">JUNE 30TH</span> · LOCK IN YOUR SPOT AT <span className="text-bg-dark bg-white/90 px-1.5 py-0.5 rounded-xs mx-1">{formatted}</span> BEFORE PRICE RISES TO ₦10,000
+      </span>
     </div>
-  </section>
-);
+  );
+};
+
+const Hero = ({ onOpenCheckout }: { onOpenCheckout: () => void }) => {
+  const price = getCurrentPrice();
+  const formatted = formatPrice(price);
+  const isEarlyBird = new Date() < EARLY_BIRD_END;
+
+  return (
+    <section className="relative bg-[#0f0d0b] pt-12 md:pt-16 pb-16 px-5 text-center overflow-hidden">
+      {/* Enhanced Background Layers */}
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(249,115,22,0.15)_0%,transparent_50%)]" />
+      
+      {/* Dynamic Mesh Gradients */}
+      <motion.div 
+        animate={{ 
+          scale: [1, 1.2, 1],
+          x: [0, 100, 0],
+          y: [0, 50, 0],
+        }}
+        transition={{ duration: 15, repeat: Infinity, ease: "easeInOut" }}
+        className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] bg-primary-orange/10 blur-[120px] rounded-full pointer-events-none" 
+      />
+      <motion.div 
+        animate={{ 
+          scale: [1.2, 1, 1.2],
+          x: [0, -100, 0],
+          y: [0, -50, 0],
+        }}
+        transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }}
+        className="absolute bottom-[-20%] right-[-10%] w-[60%] h-[60%] bg-primary-orange/5 blur-[120px] rounded-full pointer-events-none" 
+      />
+
+      {/* Floating Particles/Shapes (Even More Lights) */}
+      <div className="absolute inset-0 pointer-events-none">
+        {[...Array(45)].map((_, i) => (
+          <motion.div
+            key={i}
+            initial={{ opacity: 0 }}
+            animate={{ 
+              opacity: [0.1, 0.5, 0.1],
+              y: [0, -120, 0],
+              x: [0, (i % 4 - 1.5) * 40, 0],
+              scale: [1, 1.5, 1]
+            }}
+            transition={{ 
+              duration: 6 + (i % 7), 
+              repeat: Infinity, 
+              delay: i * 0.2 
+            }}
+            className="absolute w-1 h-1 bg-primary-orange rounded-full shadow-[0_0_8px_rgba(249,115,22,0.8)]"
+            style={{ 
+              top: `${Math.random() * 100}%`, 
+              left: `${Math.random() * 100}%` 
+            }}
+          />
+        ))}
+      </div>
+
+      {/* Light Beams & Lens Flares */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        <motion.div 
+          animate={{ 
+            opacity: [0, 0.15, 0],
+            x: ['-20%', '120%'],
+          }}
+          transition={{ duration: 12, repeat: Infinity, ease: "linear" }}
+          className="absolute top-1/4 left-0 w-[40%] h-[1px] bg-gradient-to-r from-transparent via-primary-orange/40 to-transparent blur-md -rotate-45"
+        />
+        <motion.div 
+          animate={{ 
+            opacity: [0, 0.1, 0],
+            x: ['120%', '-20%'],
+          }}
+          transition={{ duration: 15, repeat: Infinity, ease: "linear", delay: 3 }}
+          className="absolute bottom-1/4 right-0 w-[40%] h-[1px] bg-gradient-to-r from-transparent via-primary-orange/30 to-transparent blur-md rotate-45"
+        />
+      </div>
+
+      {/* Refined Motion Graphics (Geometric & Techy) */}
+      <div className="absolute inset-0 pointer-events-none opacity-30">
+        <motion.div 
+          animate={{ rotate: 360 }}
+          transition={{ duration: 50, repeat: Infinity, ease: "linear" }}
+          className="absolute top-[5%] right-[10%] w-80 h-80 border border-primary-orange/10 rounded-full flex items-center justify-center"
+        >
+          <div className="w-[95%] h-[95%] border border-dashed border-primary-orange/5 rounded-full" />
+        </motion.div>
+        
+        <motion.div 
+          animate={{ rotate: -360 }}
+          transition={{ duration: 70, repeat: Infinity, ease: "linear" }}
+          className="absolute bottom-[15%] left-[5%] w-[500px] h-[500px] border border-primary-orange/5 rounded-full"
+        />
+
+        {/* Floating Tech Elements */}
+        {[...Array(4)].map((_, i) => (
+          <motion.div
+            key={i}
+            animate={{ 
+              y: [0, -30, 0],
+              opacity: [0.2, 0.4, 0.2]
+            }}
+            transition={{ duration: 8 + i, repeat: Infinity, ease: "easeInOut", delay: i }}
+            className="absolute font-mono text-[8px] text-primary-orange/40 tracking-tighter"
+            style={{ 
+              top: `${25 + i * 20}%`, 
+              left: i % 2 === 0 ? '15%' : '85%' 
+            }}
+          >
+            {`0${i+1} // CLSRM_EVOLVE`}
+          </motion.div>
+        ))}
+      </div>
+
+      <div className="relative z-10 max-w-[1000px] mx-auto">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="inline-flex items-center gap-2 bg-primary-orange/10 border border-primary-orange/30 text-primary-orange font-mono text-[9px] md:text-[10px] font-bold tracking-[0.1em] uppercase px-4 py-1.5 rounded-full mb-4 md:mb-5 backdrop-blur-md whitespace-nowrap"
+        >
+          <div className="w-1 h-1 bg-primary-orange rounded-full animate-pulse" />
+          Virtual Workshop · August 20–21, 2026
+        </motion.div>
+        
+        <motion.h1 
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+          className="text-4xl md:text-6xl lg:text-7xl text-text-white mb-4 md:mb-5 leading-[1.0] tracking-tight"
+        >
+          The Classroom Has <br className="hidden md:block" />
+          <span className="relative inline-block">
+            <span className="relative z-10 text-primary-orange">Changed.</span>
+            <motion.span 
+              initial={{ width: 0 }}
+              animate={{ width: '100%' }}
+              transition={{ delay: 0.5, duration: 0.8 }}
+              className="absolute bottom-2 left-0 h-2 md:h-3 bg-primary-orange/20 -z-10"
+            />
+          </span>
+          <br className="hidden md:block" /> Have You?
+        </motion.h1>
+        
+        <motion.p 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2, duration: 0.8 }}
+          className="text-xl md:text-2xl text-text-muted max-w-[720px] mx-auto mb-6 md:mb-8 font-normal leading-snug"
+        >
+          Join Nigeria's most practical teacher conference. 2 days to get the tools you need for the modern classroom.
+        </motion.p>
+        
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.4 }}
+          className="flex flex-wrap justify-center gap-4 md:gap-8 mb-6 md:mb-10"
+        >
+          {[
+            { icon: Calendar, text: "20th–21st August, 2026" },
+            { icon: Clock, text: "9:00 AM Daily" },
+            { icon: MapPin, text: "Virtual Event" },
+            { icon: Users, text: "3 Expert Speakers" }
+          ].map((item, i) => (
+            <div key={i} className="flex items-center gap-3 font-mono text-xs md:text-sm text-text-muted tracking-wider group">
+              <item.icon className="w-4 h-4 text-primary-orange group-hover:scale-110 transition-transform" />
+              {item.text}
+            </div>
+          ))}
+        </motion.div>
+        
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6 }}
+          className="relative inline-block"
+        >
+          <motion.div 
+            animate={{ scale: [1, 1.05, 1] }}
+            transition={{ duration: 2, repeat: Infinity }}
+            className="absolute -inset-1 bg-primary-orange/30 blur-xl rounded-full"
+          />
+          <button 
+            onClick={onOpenCheckout}
+            className="relative bg-primary-orange text-white font-mono text-sm md:text-base font-bold tracking-wider uppercase px-10 md:px-14 py-5 md:py-6 rounded-sm transition-all hover:bg-primary-dark hover:-translate-y-1 shadow-[0_10px_40px_rgba(249,115,22,0.4)] flex items-center gap-3 group"
+          >
+            REGISTER NOW · {formatted} {isEarlyBird ? 'EARLY BIRD' : ''}
+            <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+          </button>
+        </motion.div>
+        
+        <motion.p 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 0.6 }}
+          transition={{ delay: 1 }}
+          className="mt-8 text-xs text-text-dim font-mono tracking-widest uppercase"
+        >
+          🔒 Secure payment via Flutterwave &nbsp;|&nbsp; Price rises to ₦10,000 on July 1st
+        </motion.p>
+      </div>
+    </section>
+  );
+};
 
 const LeadSection = () => (
-  <section className="bg-bg-mid py-16 px-5 border-y border-border-custom">
+  <section className="bg-bg-mid py-20 md:py-28 px-5 border-y border-border-custom relative overflow-hidden">
+    <div className="absolute top-0 right-0 w-64 h-64 bg-primary-orange/5 blur-3xl rounded-full -mr-32 -mt-32 pointer-events-none" />
+    
     <motion.div 
       initial={{ opacity: 0, y: 24 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
-      className="max-w-[740px] mx-auto"
+      className="max-w-[840px] mx-auto"
     >
-      <span className="font-mono text-[13px] text-gold tracking-widest mb-7 block">Dear Teacher,</span>
-      <div className="space-y-4.5 text-[17px] text-[#b8c8df] leading-[1.85]">
+      <span className="font-display text-3xl md:text-5xl text-gold tracking-tight mb-8 block leading-none">Dear Teacher,</span>
+      <div className="space-y-6 text-base md:text-lg text-[#b8c8df] leading-relaxed font-light">
         <p>You became a teacher because you care about children and their future.</p>
         <p>You show up every day. Sometimes you are not paid enough. Sometimes people do not say thank you. But you still give it your best.</p>
-        <p>But lately, something feels <strong className="text-text-white">off.</strong></p>
+        <p>But lately, something feels <strong className="text-text-white font-semibold">off.</strong></p>
         <p>The students in your class today are not the same as the ones you were trained to teach. They lose focus fast. They are not always interested. They live in a world built on AI, phones, and technology that moves very fast.</p>
         <p>But the tools and teaching methods most Nigerian teachers learned in school? <span className="text-primary-orange font-bold">They have not changed.</span></p>
         <p>No one told you how to handle this. No one gave you new training. No one showed you the way.</p>
@@ -117,45 +597,58 @@ const LeadSection = () => (
         <p>But in your heart, you keep asking this question:</p>
       </div>
       
-      <div className="font-display text-2xl md:text-3xl text-text-white tracking-tight leading-tight my-7.5 p-6 border-l-4 border-primary-orange bg-bg-card italic">
-        "Am I really getting my students ready for the world out there?"
-      </div>
+      <motion.div 
+        initial={{ scale: 0.95, opacity: 0 }}
+        whileInView={{ scale: 1, opacity: 1 }}
+        viewport={{ once: true }}
+        className="font-display text-3xl md:text-5xl text-text-white tracking-tight leading-tight my-12 p-8 md:p-12 border-l-8 border-primary-orange bg-bg-card/50 backdrop-blur-sm italic relative group"
+      >
+        <div className="absolute top-4 right-8 text-primary-orange/20 text-8xl font-serif pointer-events-none group-hover:text-primary-orange/30 transition-colors">"</div>
+        "Am I really preparing my students for the future or the past?"
+      </motion.div>
       
-      <div className="space-y-4.5 text-[17px] text-[#b8c8df] leading-[1.85]">
-        <p>That feeling is real. And it is <strong className="text-text-white">not your fault.</strong></p>
+      <div className="space-y-6 text-base md:text-lg text-[#b8c8df] leading-relaxed font-light">
+        <p>That feeling is real. And it is <strong className="text-text-white font-semibold">not your fault.</strong></p>
         <p>But here is the truth. The longer you wait, the bigger the gap gets. And your students are the ones who will feel it.</p>
       </div>
     </motion.div>
   </section>
 );
 
-const SolutionSection = () => (
-  <section className="bg-bg-dark py-16 px-5">
-    <motion.div 
-      initial={{ opacity: 0, y: 24 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      className="max-w-[780px] mx-auto text-center"
-    >
-      <div className="inline-block font-mono text-[10px] font-bold tracking-[0.2em] uppercase text-primary-orange mb-3 px-2.5 py-1 border-l-3 border-primary-orange">The Solution</div>
-      <h2 className="text-3xl md:text-5xl text-text-white mb-5">There Is A <span className="text-primary-orange">Better Way.</span></h2>
-      <p className="text-[17px] text-[#b8c8df] mb-3.5 max-w-[620px] mx-auto">That is exactly why <strong className="text-text-white">The Teacher And Her Classroom Conference 2026</strong> was created.</p>
-      <p className="text-[17px] text-[#b8c8df] mb-7 max-w-[620px] mx-auto">This is not a boring seminar where you sit and listen and forget everything by Monday. This is a live, hands-on, 2-day virtual workshop made just for Nigerian teachers and school leaders who are ready to stop coping and start growing.</p>
-      <a href="#register" className="inline-block bg-primary-orange text-white font-mono text-sm font-bold tracking-wider uppercase px-11 py-4.5 rounded-sm transition-all hover:bg-primary-dark hover:-translate-y-0.5 shadow-[0_4px_28px_rgba(249,115,22,0.4)]">
-        SECURE MY EARLY BIRD SPOT →
-      </a>
-    </motion.div>
-  </section>
-);
+const SolutionSection = ({ onOpenCheckout }: { onOpenCheckout: () => void }) => {
+  const isEarlyBird = new Date() < EARLY_BIRD_END;
+
+  return (
+    <section className="bg-bg-dark py-16 px-5">
+      <motion.div 
+        initial={{ opacity: 0, y: 24 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true }}
+        className="max-w-[780px] mx-auto text-center"
+      >
+        <div className="inline-block font-mono text-[10px] font-bold tracking-[0.2em] uppercase text-primary-orange mb-3 px-2.5 py-1 border-l-3 border-primary-orange">The Solution</div>
+        <h2 className="text-3xl md:text-5xl text-text-white mb-5">There Is A <span className="text-primary-orange">Better Way.</span></h2>
+        <p className="text-base md:text-lg text-[#b8c8df] mb-3.5 max-w-[620px] mx-auto">That is exactly why <strong className="text-text-white">The Teacher And Her Classroom Conference 2026</strong> was created.</p>
+        <p className="text-base md:text-lg text-[#b8c8df] mb-7 max-w-[620px] mx-auto">This is not a boring seminar where you sit and listen and forget everything by Monday. This is a live, hands-on, 2-day virtual workshop made just for Nigerian teachers and school leaders who are ready to stop coping and start growing.</p>
+        <button 
+          onClick={onOpenCheckout}
+          className="inline-block bg-primary-orange text-white font-mono text-sm font-bold tracking-wider uppercase px-11 py-4.5 rounded-sm transition-all hover:bg-primary-dark hover:-translate-y-0.5 shadow-[0_4px_28px_rgba(249,115,22,0.4)]"
+        >
+          SECURE MY {isEarlyBird ? 'EARLY BIRD' : ''} SPOT →
+        </button>
+      </motion.div>
+    </section>
+  );
+};
 
 const IncludedSection = () => (
   <section className="bg-bg-mid py-16 px-5 border-y border-border-custom">
     <div className="max-w-[1000px] mx-auto">
       <div className="inline-block font-mono text-[10px] font-bold tracking-[0.2em] uppercase text-primary-orange mb-3 px-2.5 py-1 border-l-3 border-primary-orange">What Is Included</div>
       <h2 className="text-3xl md:text-5xl text-text-white mb-3.5">Everything You Get</h2>
-      <p className="text-base text-text-muted max-w-[580px] mb-10">One registration. Two days. Everything you need to change your classroom.</p>
+      <p className="text-base md:text-lg text-text-muted max-w-[580px] mb-10">One registration. Two days. Everything you need to change your classroom.</p>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {[
           { icon: Mic2, title: "2 Days of Live Sessions", desc: "You will learn from 3 real experts in live sessions. No boring slides. No fluff. Just tools you can use right away." },
           { icon: Play, title: "Full Session Replays", desc: "Cannot make it live? No worries. Every session is recorded. You can watch it again and again at your own time." },
@@ -170,11 +663,18 @@ const IncludedSection = () => (
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ delay: i * 0.1 }}
-            className="bg-bg-card border border-border-custom rounded-sm p-6 transition-colors hover:border-border-red"
+            className="bg-bg-card border border-border-custom rounded-xl p-8 transition-all hover:border-primary-orange/50 hover:-translate-y-1 relative overflow-hidden group shadow-lg"
           >
-            <item.icon className="w-8 h-8 text-primary-orange mb-3" />
-            <h4 className="text-xl text-text-white mb-2">{item.title}</h4>
-            <p className="text-sm text-text-muted leading-relaxed">{item.desc}</p>
+            <div className="absolute -right-4 -bottom-4 opacity-[0.03] group-hover:opacity-[0.07] transition-opacity pointer-events-none">
+              <item.icon className="w-32 h-32 text-white" />
+            </div>
+            <div className="relative z-10">
+              <div className="w-12 h-12 bg-primary-orange/10 rounded-lg flex items-center justify-center mb-5 group-hover:bg-primary-orange/20 transition-colors">
+                <item.icon className="w-6 h-6 text-primary-orange" />
+              </div>
+              <h4 className="text-2xl text-text-white mb-3 font-display">{item.title}</h4>
+              <p className="text-base text-text-muted leading-relaxed">{item.desc}</p>
+            </div>
           </motion.div>
         ))}
       </div>
@@ -211,7 +711,7 @@ const HostSection = () => (
           <div className="font-['Space_Mono'] text-[12px] text-primary-orange uppercase tracking-widest mb-4">
             Host & Founder · Stephanie Global Education
           </div>
-          <p className="font-mono text-[15px] text-text-muted leading-relaxed mb-6">
+          <p className="font-mono text-base md:text-lg text-text-muted leading-relaxed mb-6">
             Stephanie Joel-Ovo is the founder of Stephanie Global Education and the driving force behind The Teacher And Her Classroom Conference. Passionate about transforming education across Nigeria, she has dedicated her work to equipping teachers, empowering school leaders, and ensuring every child has access to quality, future-ready education. This conference is her vision made real.
           </p>
           <div className="inline-block bg-primary-orange/10 border border-primary-orange/30 text-primary-orange font-mono text-[10px] font-bold tracking-widest uppercase px-3 py-1.5 rounded-sm self-start">
@@ -223,76 +723,148 @@ const HostSection = () => (
   </section>
 );
 
-const SpeakersSection = () => (
-  <section className="bg-bg-dark py-16 px-5">
-    <div className="max-w-[1000px] mx-auto">
-      <div className="inline-block font-mono text-[10px] font-bold tracking-[0.2em] uppercase text-primary-orange mb-3 px-2.5 py-1 border-l-3 border-primary-orange">Your Speakers</div>
-      <h2 className="text-3xl md:text-5xl text-text-white mb-3.5">3 Experts. Real Experience. <span className="text-primary-orange">Zero Fluff.</span></h2>
-      <p className="text-base text-text-muted max-w-[580px] mb-10">Every speaker is living what they teach. No theory. Just real experience.</p>
-      
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {[
-          {
-            name: "Fii Stephen",
-            title: "AI Consultant & Growth Strategist\nFounder, AI Literacy Academy",
-            bio: `Fii Stephen is an AI Consultant, Growth Marketing, and Digital Marketing Professional with over 8 years of experience. He is Generative AI Certified by IBM, AI for Marketing Certified by Davidson College, North Carolina, USA, and one of the Meta Certified Digital Marketing Associates in West Africa. 
+const SpeakersSection = () => {
+  const [selectedSpeaker, setSelectedSpeaker] = useState<any>(null);
+
+  const speakers = [
+    {
+      name: "Fii Stephen",
+      title: "AI Consultant & Growth Strategist\nFounder, AI Literacy Academy",
+      bio: `Fii Stephen is an AI Consultant, Growth Marketing, and Digital Marketing Professional with over 8 years of experience. He is Generative AI Certified by IBM, AI for Marketing Certified by Davidson College, North Carolina, USA, and one of the Meta Certified Digital Marketing Associates in West Africa. 
 
 Over the past 12 months, Fii has trained over 1,500 people in AI, digital marketing, and personal development. He was awarded the YALI Star of Business as an outstanding participant of the USAID and Mastercard foundation-sponsored Young African Leaders Initiative regional leadership program, in Accra, Ghana.
 
 Fii is the Founder of the AI Literacy Academy and Co-Founder of Claywings Technologies.
 
 He was also recently selected as a research group member at the Centre for AI and Digital Policy, Washington DC, USA.`,
-            img: "https://www.theteacherandherclassroom.ng/wp-content/uploads/2026/04/Fii-Stephen-Picture-1.jpeg"
-          },
-          {
-            name: "Similoluwa Adekoye",
-            title: "Nigerian Education Advocate\nCertified Chemistry Teacher & Freelance Writer",
-            bio: `Similoluwa Adekoye is a Nigerian education advocate, certified Chemistry teacher and expert freelance writer dedicated to transforming educational outcomes across Nigeria. With a B.Sc. Ed. in Chemistry and professional teaching certification (TRCN), she brings both subject expertise and pedagogical insight to her work.
+      img: "https://www.theteacherandherclassroom.ng/wp-content/uploads/2026/04/Fii-Stephen-Picture-1.jpeg"
+    },
+    {
+      name: "Similoluwa Adekoye",
+      title: "Nigerian Education Advocate\nCertified Chemistry Teacher & Freelance Writer",
+      bio: `Similoluwa Adekoye is a Nigerian education advocate, certified Chemistry teacher and expert freelance writer dedicated to transforming educational outcomes across Nigeria. With a B.Sc. Ed. in Chemistry and professional teaching certification (TRCN), she brings both subject expertise and pedagogical insight to her work.
 
 Through her writing and advocacy, Similoluwa addresses curriculum gaps, teacher welfare, and systemic barriers to quality education. She is passionate about equipping teachers with practical tools to succeed in real classrooms and empowering students to thrive. Her work centers on one mission: ensuring every Nigerian child has access to quality education.`,
-            img: "https://www.theteacherandherclassroom.ng/wp-content/uploads/2026/04/Similoluwa-Adekoye.jpeg"
-          },
-          {
-            name: "George O. Agbede",
-            title: "Online Education Expert\nMicrosoft Certified Educator · Lead Tutor, GLS Academy",
-            bio: `George O. Agbede is a seasoned educator, teacher-trainer, and digital learning coach with over 10 years of classroom and virtual teaching experience. As the Lead Tutor at GLS Academy and a Microsoft Certified Educator, he has helped hundreds of students excel in international exams like SAT and UK 11 + while mentoring fellow teachers to transition into online teaching successfully.
+      img: "https://www.theteacherandherclassroom.ng/wp-content/uploads/2026/04/Similoluwa-Adekoye.jpeg"
+    },
+    {
+      name: "George O. Agbede",
+      title: "Online Education Expert\nMicrosoft Certified Educator · Lead Tutor, GLS Academy",
+      bio: `George O. Agbede is a seasoned educator, teacher-trainer, and digital learning coach with over 10 years of classroom and virtual teaching experience. As the Lead Tutor at GLS Academy and a Microsoft Certified Educator, he has helped hundreds of students excel in international exams like SAT and UK 11 + while mentoring fellow teachers to transition into online teaching successfully.
 
 He holds multiple certifications including PGCEi, QTS, IGCSE, and TRCN, and is passionate about empowering educators to thrive in 21 st-century classrooms. George is known for his engaging, tech-savvy teaching style and his commitment to building learner-centered environments that foster curiosity, collaboration, and lifelong learning.
 
 Through his work, he equips teachers with the tools and mindset to deliver impactful education beyond borders.`,
-            img: "https://www.theteacherandherclassroom.ng/wp-content/uploads/2026/04/George-Agbede.jpeg"
-          }
-        ].map((speaker, i) => (
-          <motion.div 
-            key={i}
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: i * 0.1 }}
-            className="bg-bg-card border border-border-custom rounded-sm overflow-hidden transition-all hover:-translate-y-1 hover:border-border-red group"
-          >
-            <div className="w-full aspect-[3/4] overflow-hidden relative bg-bg-card2">
-              <img 
-                src={speaker.img} 
-                alt={speaker.name} 
-                className="w-full h-full object-cover object-top grayscale-[20%] group-hover:grayscale-0 transition-all duration-300"
-                referrerPolicy="no-referrer"
-              />
-              <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-bg-card via-bg-card/40 to-transparent" />
-            </div>
-            <div className="p-5 pb-6">
-              <h3 className="text-[28px] text-text-white mb-1">{speaker.name}</h3>
-              <div className="font-mono text-[11px] text-primary-orange tracking-wider uppercase mb-3.5 leading-relaxed whitespace-pre-line">
-                {speaker.title}
+      img: "https://www.theteacherandherclassroom.ng/wp-content/uploads/2026/04/George-Agbede.jpeg"
+    }
+  ];
+
+  return (
+    <section className="bg-bg-dark py-16 px-5">
+      <div className="max-w-[1000px] mx-auto">
+        <div className="inline-block font-mono text-[10px] font-bold tracking-[0.2em] uppercase text-primary-orange mb-3 px-2.5 py-1 border-l-3 border-primary-orange">Your Speakers</div>
+        <h2 className="text-3xl md:text-5xl text-text-white mb-3.5">3 Experts. Real Experience. <span className="text-primary-orange">Zero Fluff.</span></h2>
+        <p className="text-base md:text-lg text-text-muted max-w-[580px] mb-10">Every speaker is living what they teach. No theory. Just real experience.</p>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {speakers.map((speaker, i) => (
+            <motion.div 
+              key={i}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.1 }}
+              className="bg-bg-card border border-border-custom rounded-sm overflow-hidden transition-all hover:-translate-y-1 hover:border-border-red group"
+            >
+              <div className="w-full aspect-[3/4] overflow-hidden relative bg-bg-card2">
+                <img 
+                  src={speaker.img} 
+                  alt={speaker.name} 
+                  className="w-full h-full object-cover object-top grayscale-[20%] group-hover:grayscale-0 transition-all duration-300"
+                  referrerPolicy="no-referrer"
+                />
+                <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-bg-card via-bg-card/40 to-transparent" />
               </div>
-              <p className="text-sm text-text-muted leading-relaxed whitespace-pre-line">{speaker.bio}</p>
-            </div>
-          </motion.div>
-        ))}
+              <div className="p-5 pb-6">
+                <h3 className="text-[28px] text-text-white mb-1">{speaker.name}</h3>
+                <div className="font-mono text-[11px] text-primary-orange tracking-wider uppercase mb-3.5 leading-relaxed whitespace-pre-line">
+                  {speaker.title}
+                </div>
+                <p className="text-sm text-text-muted leading-relaxed line-clamp-3 mb-4">
+                  {speaker.bio}
+                </p>
+                <button 
+                  onClick={() => setSelectedSpeaker(speaker)}
+                  className="text-primary-orange font-mono text-xs font-bold uppercase tracking-widest hover:text-white transition-colors flex items-center gap-2"
+                >
+                  Read Full Bio <ArrowRight className="w-3 h-3" />
+                </button>
+              </div>
+            </motion.div>
+          ))}
+        </div>
       </div>
-    </div>
-  </section>
-);
+
+      {/* Speaker Modal */}
+      <AnimatePresence>
+        {selectedSpeaker && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-5">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSelectedSpeaker(null)}
+              className="absolute inset-0 bg-bg-dark/90 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative bg-bg-card border border-border-custom w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-xl shadow-2xl"
+            >
+              <button 
+                onClick={() => setSelectedSpeaker(null)}
+                className="absolute top-4 right-4 text-text-muted hover:text-white transition-colors z-10"
+              >
+                <ChevronDown className="w-8 h-8 rotate-90" />
+              </button>
+              
+              <div className="p-8 md:p-12">
+                <div className="flex flex-col md:flex-row gap-8 items-center md:items-start mb-8">
+                  <div className="w-32 h-32 md:w-40 md:h-40 shrink-0 rounded-full border-2 border-primary-orange overflow-hidden">
+                    <img 
+                      src={selectedSpeaker.img} 
+                      alt={selectedSpeaker.name} 
+                      className="w-full h-full object-cover object-top"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                  <div className="text-center md:text-left">
+                    <h3 className="text-4xl text-text-white mb-2 font-display">{selectedSpeaker.name}</h3>
+                    <div className="font-mono text-sm text-primary-orange uppercase tracking-widest whitespace-pre-line">
+                      {selectedSpeaker.title}
+                    </div>
+                  </div>
+                </div>
+                <div className="text-base md:text-lg text-text-muted leading-relaxed whitespace-pre-line font-light">
+                  {selectedSpeaker.bio}
+                </div>
+                <div className="mt-10 pt-8 border-t border-border-custom">
+                  <button 
+                    onClick={() => setSelectedSpeaker(null)}
+                    className="bg-primary-orange text-white font-mono text-sm font-bold tracking-wider uppercase px-8 py-3 rounded-sm hover:bg-primary-dark transition-colors"
+                  >
+                    Close Bio
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </section>
+  );
+};
 
 const LearnSection = () => (
   <section className="bg-bg-mid py-16 px-5 border-y border-border-custom">
@@ -334,16 +906,16 @@ const ComparisonTable = () => (
       <div className="inline-block font-mono text-[10px] font-bold tracking-[0.2em] uppercase text-primary-orange mb-3 px-2.5 py-1 border-l-3 border-primary-orange">Free Content vs This Conference</div>
       <h2 className="text-3xl md:text-5xl text-text-white mb-10">Why Not Just Watch YouTube?</h2>
       
-      <div className="overflow-x-auto">
-        <table className="w-full max-w-[760px] mx-auto border-collapse rounded-sm overflow-hidden">
+      <div className="overflow-x-auto -mx-5 px-5 md:mx-0 md:px-0">
+        <table className="w-full max-w-[760px] mx-auto border-collapse rounded-sm overflow-hidden min-w-[320px]">
           <thead>
             <tr className="bg-bg-card2">
-              <th className="p-4 px-5 text-left font-mono text-xs tracking-widest uppercase text-text-muted border-b-2 border-border-custom">Feature</th>
-              <th className="p-4 px-5 text-left font-mono text-xs tracking-widest uppercase text-text-muted border-b-2 border-border-custom">Free YouTube / Content</th>
-              <th className="p-4 px-5 text-left font-mono text-xs tracking-widest uppercase text-gold border-b-2 border-border-custom bg-[rgba(240,165,0,0.06)]">✦ This Conference</th>
+              <th className="p-2 md:p-4 px-3 md:px-5 text-left font-mono text-[9px] md:text-xs tracking-widest uppercase text-text-muted border-b-2 border-border-custom">Feature</th>
+              <th className="p-2 md:p-4 px-3 md:px-5 text-left font-mono text-[9px] md:text-xs tracking-widest uppercase text-text-muted border-b-2 border-border-custom">Free YouTube</th>
+              <th className="p-2 md:p-4 px-3 md:px-5 text-left font-mono text-[9px] md:text-xs tracking-widest uppercase text-gold border-b-2 border-border-custom bg-[rgba(240,165,0,0.06)]">✦ Conference</th>
             </tr>
           </thead>
-          <tbody className="text-sm">
+          <tbody className="text-[11px] md:text-sm">
             {[
               ["Tools made for Nigerian teachers", "❌ Too general", "✅ Made for you"],
               ["Ask questions live", "❌ Not possible", "✅ Both days"],
@@ -354,9 +926,9 @@ const ComparisonTable = () => (
               ["3 expert speakers together", "❌ Hours of searching", "✅ 2 days"]
             ].map((row, i) => (
               <tr key={i} className={`border-b border-border-custom ${i % 2 === 1 ? 'bg-[rgba(255,255,255,0.018)]' : ''}`}>
-                <td className="p-3.5 px-5 text-text-white font-semibold">{row[0]}</td>
-                <td className="p-3.5 px-5 text-text-dim">{row[1]}</td>
-                <td className="p-3.5 px-5 text-gold font-bold bg-[rgba(240,165,0,0.04)]">{row[2]}</td>
+                <td className="p-2.5 md:p-3.5 px-3 md:px-5 text-text-white font-semibold leading-tight">{row[0]}</td>
+                <td className="p-2.5 md:p-3.5 px-3 md:px-5 text-text-dim leading-tight">{row[1]}</td>
+                <td className="p-2.5 md:p-3.5 px-3 md:px-5 text-gold font-bold bg-[rgba(240,165,0,0.04)] leading-tight">{row[2]}</td>
               </tr>
             ))}
           </tbody>
@@ -366,64 +938,76 @@ const ComparisonTable = () => (
   </section>
 );
 
-const PricingSection = () => (
-  <section className="bg-bg-mid py-20 px-5 border-y border-border-custom" id="register">
-    <div className="max-w-[1000px] mx-auto text-center">
-      <div className="inline-block font-mono text-[10px] font-bold tracking-[0.2em] uppercase text-primary-orange mb-3 px-2.5 py-1 border-l-3 border-primary-orange">How Much Does It Cost</div>
-      <h2 className="text-3xl md:text-5xl text-text-white mb-3.5">Get Your Spot Today</h2>
-      <p className="text-base text-text-muted max-w-[580px] mx-auto mb-10">The early bird price will not last. Sign up before June ends and save ₦3,000.</p>
-      
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.95 }}
-        whileInView={{ opacity: 1, scale: 1 }}
-        viewport={{ once: true }}
-        className="max-w-[560px] mx-auto bg-bg-card border border-border-red rounded-sm overflow-hidden shadow-[0_0_60px_rgba(249,115,22,0.12)]"
-      >
-        <div className="bg-primary-orange py-4.5 px-7.5 text-center">
-          <p className="font-mono text-[13px] font-bold tracking-widest uppercase text-[rgba(255,255,255,0.9)]">🔥 EARLY BIRD · ENDS JUNE 30TH, 2026</p>
-        </div>
-        <div className="p-9 md:p-10 text-left">
-          <div className="font-mono text-[15px] text-text-dim line-through mb-1">Regular Price: ₦10,000</div>
-          <div className="font-display text-7xl text-gold leading-none mb-1.5">₦7,000</div>
-          <div className="font-mono text-[11px] text-text-muted tracking-wider mb-7">EARLY BIRD PRICE · SAVES YOU ₦3,000 · ENDS JUNE 30TH</div>
-          
-          <hr className="border-border-custom mb-6" />
-          
-          <ul className="space-y-2.5 mb-8">
-            {[
-              "2-Day Live Virtual Workshop",
-              "Full Session Replays",
-              "Downloadable Resource Materials",
-              "Participation Certificate",
-              "Exclusive Community Access"
-            ].map((item, i) => (
-              <li key={i} className="flex items-center gap-3 py-2.5 text-[15px] text-[#c8d8ee] border-b border-border-custom last:border-none">
-                <div className="w-5.5 h-5.5 bg-primary-orange rounded-sm flex items-center justify-center shrink-0">
-                  <Check className="w-3.5 h-3.5 text-white stroke-[3px]" />
-                </div>
-                {item}
-              </li>
-            ))}
-          </ul>
-          
-          <div className="bg-[rgba(200,16,46,0.08)] border border-border-red rounded-sm p-3.5 mb-7 text-center">
-            <p className="font-mono text-xs text-primary-orange tracking-wider leading-relaxed">⚠️ Price goes up to ₦10,000 on July 1st, 2026.<br/>Sign up in May or June to pay only ₦7,000.</p>
+const PricingSection = ({ onOpenCheckout }: { onOpenCheckout: () => void }) => {
+  const price = getCurrentPrice();
+  const formatted = formatPrice(price);
+  const isEarlyBird = new Date() < EARLY_BIRD_END;
+
+  return (
+    <section className="bg-bg-mid py-20 px-5 border-y border-border-custom" id="register">
+      <div className="max-w-[1000px] mx-auto text-center">
+        <div className="inline-block font-mono text-[10px] font-bold tracking-[0.2em] uppercase text-primary-orange mb-3 px-2.5 py-1 border-l-3 border-primary-orange">How Much Does It Cost</div>
+        <h2 className="text-3xl md:text-5xl text-text-white mb-3.5">Get Your Spot Today</h2>
+        <p className="text-base text-text-muted max-w-[580px] mx-auto mb-10">The early bird price will not last. Sign up before June ends and save ₦3,000.</p>
+        
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          whileInView={{ opacity: 1, scale: 1 }}
+          viewport={{ once: true }}
+          className="max-w-[560px] mx-auto bg-bg-card border border-border-red rounded-sm overflow-hidden shadow-[0_0_60px_rgba(249,115,22,0.12)]"
+        >
+          <div className="bg-primary-orange py-4.5 px-7.5 text-center">
+            <p className="font-mono text-[13px] font-bold tracking-widest uppercase text-[rgba(255,255,255,0.9)]">
+              {isEarlyBird ? '🔥 EARLY BIRD · ENDS JUNE 30TH, 2026' : 'REGISTRATION OPEN'}
+            </p>
           </div>
-          
-          <a 
-            href="#" 
-            className="block w-full bg-primary-orange text-white text-center font-mono text-[15px] font-bold tracking-wider uppercase py-5 rounded-sm transition-all hover:bg-primary-dark hover:-translate-y-0.5 shadow-[0_4px_28px_rgba(249,115,22,0.4)]"
-          >
-            YES · REGISTER ME FOR ₦7,000 →
-          </a>
-          <p className="text-center mt-3.5 text-xs text-text-dim font-mono">
-            🔒 Secure payment via Flutterwave &nbsp;|&nbsp; Conference: Aug 20–21, 2026
-          </p>
-        </div>
-      </motion.div>
-    </div>
-  </section>
-);
+          <div className="p-9 md:p-10 text-left">
+            <div className="font-mono text-[15px] text-text-dim line-through mb-1">Regular Price: ₦10,000</div>
+            <div className="font-display text-7xl text-gold leading-none mb-1.5">{formatted}</div>
+            <div className="font-mono text-[11px] text-text-muted tracking-wider mb-7">
+              {isEarlyBird ? 'EARLY BIRD PRICE · SAVES YOU ₦3,000 · ENDS JUNE 30TH' : 'STANDARD REGISTRATION PRICE'}
+            </div>
+            
+            <hr className="border-border-custom mb-6" />
+            
+            <ul className="space-y-2.5 mb-8">
+              {[
+                "2-Day Live Virtual Workshop",
+                "Full Session Replays",
+                "Downloadable Resource Materials",
+                "Participation Certificate",
+                "Exclusive Community Access"
+              ].map((item, i) => (
+                <li key={i} className="flex items-center gap-3 py-2.5 text-[15px] text-[#c8d8ee] border-b border-border-custom last:border-none">
+                  <div className="w-5.5 h-5.5 bg-primary-orange rounded-sm flex items-center justify-center shrink-0">
+                    <Check className="w-3.5 h-3.5 text-white stroke-[3px]" />
+                  </div>
+                  {item}
+                </li>
+              ))}
+            </ul>
+            
+            {isEarlyBird && (
+              <div className="bg-[rgba(200,16,46,0.08)] border border-border-red rounded-sm p-3.5 mb-7 text-center">
+                <p className="font-mono text-xs text-primary-orange tracking-wider leading-relaxed">⚠️ Price goes up to ₦10,000 on July 1st, 2026.<br/>Sign up in May or June to pay only ₦7,000.</p>
+              </div>
+            )}
+            
+            <button 
+              onClick={onOpenCheckout}
+              className="block w-full bg-primary-orange text-white text-center font-mono text-[15px] font-bold tracking-wider uppercase py-5 rounded-sm transition-all hover:bg-primary-dark hover:-translate-y-0.5 shadow-[0_4px_28px_rgba(249,115,22,0.4)]"
+            >
+              YES · REGISTER ME FOR {formatted} →
+            </button>
+            <p className="text-center mt-3.5 text-xs text-text-dim font-mono">
+              🔒 Secure payment via Flutterwave &nbsp;|&nbsp; Conference: Aug 20–21, 2026
+            </p>
+          </div>
+        </motion.div>
+      </div>
+    </section>
+  );
+};
 
 const GuaranteeSection = () => (
   <section className="bg-bg-dark py-16 px-5">
@@ -493,23 +1077,32 @@ const FAQSection = () => {
   );
 };
 
-const FinalCTA = () => (
-  <section className="bg-[linear-gradient(160deg,#150f08_0%,#0f0d0b_60%,#1a1208_100%)] py-24 px-5 text-center relative overflow-hidden">
-    <div className="absolute bottom-[-100px] left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-[radial-gradient(circle,rgba(249,115,22,0.16)_0%,transparent_70%)] pointer-events-none" />
-    
-    <div className="relative z-10">
-      <div className="inline-block font-mono text-[10px] font-bold tracking-[0.2em] uppercase text-primary-orange mb-3 px-2.5 py-1 border-l-3 border-primary-orange">Do Not Wait</div>
-      <h2 className="text-3xl md:text-5xl lg:text-6xl text-text-white max-w-[800px] mx-auto mb-4">Your Students Need A <span className="text-primary-orange">Future-Ready</span> Teacher.</h2>
-      <p className="text-[17px] text-text-muted max-w-[520px] mx-auto mb-9">The price goes up on July 1st. The conference starts on August 20th. Sign up today and take the first step.</p>
-      <a href="#register" className="inline-block bg-primary-orange text-white font-mono text-[15px] font-bold tracking-wider uppercase px-13 py-5 rounded-sm transition-all hover:bg-primary-dark hover:-translate-y-0.5 shadow-[0_4px_28px_rgba(249,115,22,0.4)]">
-        REGISTER NOW · ₦7,000 EARLY BIRD →
-      </a>
-      <p className="mt-4.5 text-xs text-text-dim font-mono tracking-wider">
-        Price rises to ₦10,000 on July 1st &nbsp;·&nbsp; Powered by Stephanie Global Education
-      </p>
-    </div>
-  </section>
-);
+const FinalCTA = ({ onOpenCheckout }: { onOpenCheckout: () => void }) => {
+  const price = getCurrentPrice();
+  const formatted = formatPrice(price);
+  const isEarlyBird = new Date() < EARLY_BIRD_END;
+
+  return (
+    <section className="bg-[linear-gradient(160deg,#150f08_0%,#0f0d0b_60%,#1a1208_100%)] py-24 px-5 text-center relative overflow-hidden">
+      <div className="absolute bottom-[-100px] left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-[radial-gradient(circle,rgba(249,115,22,0.16)_0%,transparent_70%)] pointer-events-none" />
+      
+      <div className="relative z-10">
+        <div className="inline-block font-mono text-[10px] font-bold tracking-[0.2em] uppercase text-primary-orange mb-3 px-2.5 py-1 border-l-3 border-primary-orange">Do Not Wait</div>
+        <h2 className="text-3xl md:text-5xl lg:text-6xl text-text-white max-w-[800px] mx-auto mb-4">Your Students Need A <span className="text-primary-orange">Future-Ready</span> Teacher.</h2>
+        <p className="text-[17px] text-text-muted max-w-[520px] mx-auto mb-9">The price goes up on July 1st. The conference starts on August 20th. Sign up today and take the first step.</p>
+        <button 
+          onClick={onOpenCheckout}
+          className="inline-block bg-primary-orange text-white font-mono text-[15px] font-bold tracking-wider uppercase px-13 py-5 rounded-sm transition-all hover:bg-primary-dark hover:-translate-y-0.5 shadow-[0_4px_28px_rgba(249,115,22,0.4)]"
+        >
+          REGISTER NOW · {formatted} {isEarlyBird ? 'EARLY BIRD' : ''} →
+        </button>
+        <p className="mt-4.5 text-xs text-text-dim font-mono tracking-wider">
+          Price rises to ₦10,000 on July 1st &nbsp;·&nbsp; Powered by Stephanie Global Education
+        </p>
+      </div>
+    </section>
+  );
+};
 
 const Footer = () => (
   <footer className="bg-bg-card2 border-t border-border-custom py-7 px-5 text-center">
@@ -523,25 +1116,28 @@ const Footer = () => (
 );
 
 export default function App() {
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+
   return (
     <div className="relative min-h-screen">
       <div className="noise-overlay" />
       <AnnouncementBar />
       <main>
-        <Hero />
+        <Hero onOpenCheckout={() => setIsCheckoutOpen(true)} />
         <LeadSection />
-        <SolutionSection />
+        <SolutionSection onOpenCheckout={() => setIsCheckoutOpen(true)} />
         <IncludedSection />
         <HostSection />
         <SpeakersSection />
         <LearnSection />
         <ComparisonTable />
-        <PricingSection />
+        <PricingSection onOpenCheckout={() => setIsCheckoutOpen(true)} />
         <GuaranteeSection />
         <FAQSection />
-        <FinalCTA />
+        <FinalCTA onOpenCheckout={() => setIsCheckoutOpen(true)} />
       </main>
       <Footer />
+      <CheckoutModal isOpen={isCheckoutOpen} onClose={() => setIsCheckoutOpen(false)} />
     </div>
   );
 }

@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checkout | The Teacher And Her Classroom Conference 2026</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Poppins:wght@300;400;500;600;700&family=Mulish:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+    <script src="https://js.paystack.co/v1/inline.js"></script>
+    <script src="https://checkout.flutterwave.com/v3.js"></script>
+    <style>
+        :root {
+            --bg-page: #0f0d0b;
+            --bg-section: #1a1410;
+            --bg-card: #221c15;
+            --primary-orange: #f97316;
+            --deep-orange: #ea580c;
+            --text-white: #fdf5ee;
+            --text-muted: #b8a898;
+            --text-dim: #7a6a5a;
+            --border: rgba(249,115,22,0.12);
+            --border-glow: rgba(249,115,22,0.4);
+            --success: #22c55e;
+            --error: #ef4444;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-page);
+            color: var(--text-white);
+            font-family: 'Poppins', sans-serif;
+            font-size: 16px;
+            line-height: 1.75;
+            position: relative;
+            min-height: 100vh;
+        }
+
+        body::before {
+            content: "";
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+            opacity: 0.05;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        h1, h2, h3, h4 {
+            font-family: 'Archivo Black', sans-serif;
+            letter-spacing: -0.01em;
+            line-height: 1.05;
+            color: var(--text-white);
+        }
+
+        .label, .tag, .meta, footer, .badge-text, .section-label {
+            font-family: 'Mulish', sans-serif;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            font-weight: 700;
+        }
+
+        header {
+            background-color: var(--bg-section);
+            border-bottom: 1px solid var(--border);
+            padding: 16px 20px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-container {
+            max-width: 1100px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo-area {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+        }
+
+        .logo-img {
+            height: 32px;
+            width: auto;
+        }
+
+        .logo-text {
+            font-size: 18px;
+            color: var(--text-white);
+        }
+
+        .logo-text span {
+            color: var(--primary-orange);
+        }
+
+        .back-link {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 14px;
+            transition: color 0.2s;
+        }
+
+        .back-link:hover {
+            color: var(--primary-orange);
+        }
+
+        main {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 40px;
+            position: relative;
+            z-index: 2;
+        }
+
+        @media (min-width: 992px) {
+            main {
+                grid-template-columns: 400px 1fr;
+                align-items: start;
+            }
+            .checkout-form-container {
+                order: 2;
+            }
+            .order-summary-container {
+                order: 1;
+            }
+        }
+
+        .hero-glow {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+            max-width: 800px;
+            height: 400px;
+            background: radial-gradient(circle, rgba(249,115,22,0.15) 0%, transparent 70%);
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        .card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 24px;
+            transition: transform 0.2s ease, border-color 0.2s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-4px);
+            border-color: var(--border-glow);
+        }
+
+        .section-label {
+            color: var(--primary-orange);
+            font-size: 12px;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .summary-title {
+            font-size: 20px;
+            margin-bottom: 24px;
+        }
+
+        .line-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 12px;
+            font-size: 14px;
+            color: var(--text-muted);
+        }
+
+        .line-item.main {
+            color: var(--text-white);
+            font-weight: 500;
+            margin-bottom: 20px;
+        }
+
+        .line-item span:last-child {
+            font-family: 'Mulish', sans-serif;
+            font-weight: 800;
+            font-size: 11px;
+            letter-spacing: 0.05em;
+        }
+
+        .total-row {
+            margin-top: 24px;
+            padding-top: 24px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .total-label {
+            font-size: 18px;
+        }
+
+        .total-amount {
+            font-size: 28px;
+            color: var(--primary-orange);
+        }
+
+        .price-context {
+            font-size: 12px;
+            color: var(--text-dim);
+            margin-top: 8px;
+            text-align: right;
+        }
+
+        .trust-badges {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-top: 24px;
+        }
+
+        .badge {
+            background-color: var(--bg-card);
+            border: 1px solid var(--primary-orange);
+            border-radius: 6px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .badge-title {
+            font-family: 'Mulish', sans-serif;
+            font-weight: 700;
+            font-size: 11px;
+            color: var(--text-white);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .badge-sub {
+            font-size: 10px;
+            color: var(--text-muted);
+        }
+
+        .checkout-header h1 {
+            font-size: clamp(32px, 5vw, 48px);
+            margin-bottom: 12px;
+        }
+
+        .checkout-header p {
+            color: var(--text-muted);
+            margin-bottom: 32px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            font-family: 'Mulish', sans-serif;
+            font-weight: 700;
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+
+        input {
+            background: var(--bg-card);
+            border: 1px solid rgba(249,115,22,0.2);
+            border-radius: 4px;
+            color: var(--text-white);
+            padding: 14px 16px;
+            font-family: 'Poppins', sans-serif;
+            font-size: 15px;
+            width: 100%;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--primary-orange);
+            box-shadow: 0 0 0 3px rgba(249,115,22,0.12);
+        }
+
+        .gateway-selector {
+            margin-top: 32px;
+            margin-bottom: 32px;
+        }
+
+        .gateway-options {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-top: 12px;
+        }
+
+        .gateway-btn {
+            background: var(--bg-card);
+            border: 1px solid rgba(249,115,22,0.2);
+            border-radius: 4px;
+            padding: 16px;
+            color: var(--text-white);
+            font-family: 'Mulish', sans-serif;
+            font-weight: 700;
+            font-size: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            transition: all 0.2s;
+        }
+
+        .gateway-btn.active {
+            border-color: var(--primary-orange);
+            background-color: rgba(249,115,22,0.08);
+            color: var(--primary-orange);
+        }
+
+        .submit-btn {
+            width: 100%;
+            background-color: var(--text-white);
+            color: var(--bg-page);
+            border: none;
+            border-radius: 4px;
+            padding: 18px;
+            font-family: 'Archivo Black', sans-serif;
+            font-size: 16px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+
+        .submit-btn:hover {
+            background-color: var(--primary-orange);
+            color: var(--text-white);
+        }
+
+        .submit-btn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
+        .legal-text {
+            font-family: 'Mulish', sans-serif;
+            font-size: 11px;
+            color: var(--text-dim);
+            text-align: center;
+            margin-top: 16px;
+        }
+
+        #formError {
+            background-color: rgba(239, 68, 68, 0.1);
+            border: 1px solid var(--error);
+            color: var(--error);
+            padding: 12px;
+            border-radius: 4px;
+            font-size: 13px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        #cancelMsg {
+            background-color: rgba(249, 115, 22, 0.1);
+            border: 1px solid var(--primary-orange);
+            color: var(--primary-orange);
+            padding: 12px;
+            border-radius: 4px;
+            font-size: 13px;
+            margin-top: 20px;
+            display: none;
+        }
+
+        footer {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-dim);
+            font-size: 12px;
+            border-top: 1px solid var(--border);
+            margin-top: 40px;
+        }
+
+        .footer-link {
+            color: var(--primary-orange);
+            text-decoration: none;
+        }
+
+        /* Spinner */
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(0,0,0,0.1);
+            border-top: 3px solid currentColor;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            display: none;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-container">
+            <a href="index.html" class="logo-area">
+                <img src="SGE_Logo.png" alt="SGE Logo" class="logo-img">
+                <div class="logo-text">STEPHANIE <span>GLOBAL</span> EDUCATION</div>
+            </a>
+            <a href="index.html" class="back-link">← Back</a>
+        </div>
+    </header>
+
+    <main>
+        <div class="hero-glow"></div>
+
+        <div class="order-summary-container">
+            <div class="card">
+                <div class="section-label">⚡ ORDER SUMMARY</div>
+                <h3 class="summary-title">Your Registration</h3>
+                
+                <div class="line-item main">
+                    <span>Conference 2026 Ticket</span>
+                    <span id="itemPrice">₦0</span>
+                </div>
+                <div class="line-item">
+                    <span>Session Replays</span>
+                    <span>INCLUDED</span>
+                </div>
+                <div class="line-item">
+                    <span>Participation Certificate</span>
+                    <span>INCLUDED</span>
+                </div>
+                <div class="line-item">
+                    <span>Resource Materials</span>
+                    <span>INCLUDED</span>
+                </div>
+                <div class="line-item">
+                    <span>Community Access</span>
+                    <span>INCLUDED</span>
+                </div>
+
+                <div class="total-row">
+                    <div class="total-label">TOTAL</div>
+                    <div class="total-amount" id="totalAmount">₦0</div>
+                </div>
+                <div class="price-context" id="priceContext"></div>
+            </div>
+
+            <div class="trust-badges">
+                <div class="badge">
+                    <div class="badge-title">🛡️ Secure Payment</div>
+                    <div class="badge-sub">SSL encrypted checkout</div>
+                </div>
+                <div class="badge">
+                    <div class="badge-title">🔒 Safe Checkout</div>
+                    <div class="badge-sub">Powered by Paystack & Flutterwave</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="checkout-form-container">
+            <div class="checkout-header">
+                <h1>SECURE CHECKOUT</h1>
+                <p>Fill in your details below to complete your registration.</p>
+            </div>
+
+            <form id="checkoutForm">
+                <div class="form-group">
+                    <label class="form-label" for="fullName">FULL NAME</label>
+                    <input type="text" id="fullName" placeholder="John Doe" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="email">EMAIL ADDRESS</label>
+                    <input type="email" id="email" placeholder="john@example.com" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="phone">PHONE NUMBER</label>
+                    <input type="tel" id="phone" placeholder="+234 800 000 0000" required>
+                </div>
+
+                <div class="gateway-selector">
+                    <label class="form-label">SELECT PAYMENT METHOD</label>
+                    <div class="gateway-options">
+                        <button type="button" class="gateway-btn active" data-gateway="paystack">
+                            💳 PAYSTACK
+                        </button>
+                        <button type="button" class="gateway-btn" data-gateway="flutterwave">
+                            ⚡ FLUTTERWAVE
+                        </button>
+                    </div>
+                </div>
+
+                <div id="formError"></div>
+
+                <button type="submit" class="submit-btn" id="submitBtn">
+                    <span class="spinner" id="btnSpinner"></span>
+                    <span id="btnText">COMPLETE PURCHASE →</span>
+                </button>
+
+                <div id="cancelMsg">
+                    It looks like you closed the payment window. Your spot is still waiting. Click Complete Purchase when you are ready.
+                </div>
+
+                <p class="legal-text">
+                    By completing this purchase, you agree to our Terms of Service and Privacy Policy. Your data is processed securely.
+                </p>
+            </form>
+        </div>
+    </main>
+
+    <footer>
+        © 2026 Stephanie Global Education · The Teacher And Her Classroom Conference<br>
+        <a href="https://wa.me/WHATSAPP_NUMBER" class="footer-link">WhatsApp Support</a>
+    </footer>
+
+    <script>
+        // --- Global Logic ---
+        const EARLY_BIRD_END = new Date('2026-06-30T23:59:59');
+        const EARLY_BIRD_PRICE = 7000;
+        const REGULAR_PRICE = 10000;
+
+        function getCurrentPrice() {
+            return new Date() < EARLY_BIRD_END ? EARLY_BIRD_PRICE : REGULAR_PRICE;
+        }
+
+        function formatPrice(amount) {
+            return '₦' + amount.toLocaleString('en-NG');
+        }
+
+        // --- Page Logic ---
+        let selectedGateway = 'paystack';
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const price = getCurrentPrice();
+            const formatted = formatPrice(price);
+            
+            document.getElementById('itemPrice').textContent = formatted;
+            document.getElementById('totalAmount').textContent = formatted;
+
+            const contextEl = document.getElementById('priceContext');
+            if (new Date() < EARLY_BIRD_END) {
+                contextEl.textContent = 'Early bird price. Goes up to ₦10,000 on July 1st.';
+            } else {
+                contextEl.textContent = 'Standard registration price';
+            }
+
+            // Gateway selection
+            const gatewayBtns = document.querySelectorAll('.gateway-btn');
+            gatewayBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    gatewayBtns.forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    selectedGateway = btn.dataset.gateway;
+                });
+            });
+
+            // Form submission
+            const form = document.getElementById('checkoutForm');
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                if (!validateForm()) return;
+
+                const name = document.getElementById('fullName').value.trim();
+                const email = document.getElementById('email').value.trim();
+                const phone = document.getElementById('phone').value.trim();
+                const amount = getCurrentPrice();
+
+                setLoading(true);
+
+                // Abandoned cart capture (Lead capture)
+                await captureAbandonedLead(name, email, phone, selectedGateway);
+
+                if (selectedGateway === 'paystack') {
+                    initiatePaystack(name, email, amount);
+                } else {
+                    initiateFlutterwave(name, email, phone, amount);
+                }
+            });
+        });
+
+        function setLoading(isLoading) {
+            const btn = document.getElementById('submitBtn');
+            const spinner = document.getElementById('btnSpinner');
+            const text = document.getElementById('btnText');
+
+            if (isLoading) {
+                btn.disabled = true;
+                spinner.style.display = 'inline-block';
+                text.style.opacity = '0.5';
+            } else {
+                btn.disabled = false;
+                spinner.style.display = 'none';
+                text.style.opacity = '1';
+            }
+        }
+
+        function validateForm() {
+            const name = document.getElementById('fullName').value.trim();
+            const email = document.getElementById('email').value.trim();
+            const phone = document.getElementById('phone').value.trim();
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+            if (!name || name.length < 2) return showError('Please enter your full name.');
+            if (!email || !emailRegex.test(email)) return showError('Please enter a valid email address.');
+            if (!phone || phone.length < 8) return showError('Please enter a valid phone number.');
+            if (!selectedGateway) return showError('Please select a payment method.');
+            return true;
+        }
+
+        function showError(message) {
+            const el = document.getElementById('formError');
+            el.textContent = message;
+            el.style.display = 'block';
+            setTimeout(() => { el.style.display = 'none'; }, 5000);
+            return false;
+        }
+
+        async function captureAbandonedLead(name, email, phone, gateway) {
+            try {
+                await fetch('/api/capture-lead', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name,
+                        email,
+                        phone,
+                        gateway,
+                        price: getCurrentPrice(),
+                        status: 'checkout_started',
+                        timestamp: new Date().toISOString(),
+                        source: 'conference_2026_checkout'
+                    })
+                });
+            } catch (e) {
+                // Fail silently
+            }
+        }
+
+        function initiatePaystack(name, email, amount) {
+            const handler = PaystackPop.setup({
+                key: 'PASTE_YOUR_PAYSTACK_PUBLIC_KEY_HERE', 
+                email: email,
+                amount: amount * 100, 
+                currency: 'NGN',
+                ref: 'TAHCC_' + Date.now(),
+                metadata: {
+                    custom_fields: [
+                        { display_name: 'Full Name', variable_name: 'full_name', value: name },
+                        { display_name: 'Source', variable_name: 'source', value: 'Conference 2026 Checkout' }
+                    ]
+                },
+                callback: function(response) {
+                    handlePaymentSuccess(response.reference, 'paystack');
+                },
+                onClose: function() {
+                    handlePaymentCancelled();
+                }
+            });
+            handler.openIframe();
+        }
+
+        function initiateFlutterwave(name, email, phone, amount) {
+            FlutterwaveCheckout({
+                public_key: 'PASTE_YOUR_FLUTTERWAVE_PUBLIC_KEY_HERE',
+                tx_ref: 'TAHCC_FW_' + Date.now(),
+                amount: amount,
+                currency: 'NGN',
+                payment_options: 'card, ussd, banktransfer',
+                customer: {
+                    email: email,
+                    phone_number: phone,
+                    name: name
+                },
+                customizations: {
+                    title: 'The Teacher And Her Classroom Conference 2026',
+                    description: 'Conference Registration',
+                    logo: 'SGE_Logo.png'
+                },
+                callback: function(response) {
+                    if (response.status === 'successful') {
+                        handlePaymentSuccess(response.transaction_id, 'flutterwave');
+                    }
+                },
+                onclose: function() {
+                    handlePaymentCancelled();
+                }
+            });
+        }
+
+        function handlePaymentSuccess(reference, gateway) {
+            fetch('/api/capture-lead', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: document.getElementById('fullName').value,
+                    email: document.getElementById('email').value,
+                    phone: document.getElementById('phone').value,
+                    gateway: gateway,
+                    price: getCurrentPrice(),
+                    status: 'paid',
+                    reference: reference,
+                    timestamp: new Date().toISOString(),
+                    source: 'conference_2026_checkout'
+                })
+            }).catch(() => {});
+
+            window.location.href = 'thankyou.html?ref=' + reference + '&gateway=' + gateway;
+        }
+
+        function handlePaymentCancelled() {
+            setLoading(false);
+            const msg = document.getElementById('cancelMsg');
+            if (msg) {
+                msg.style.display = 'block';
+                setTimeout(() => { msg.style.display = 'none'; }, 5000);
+            }
+        }
+    </script>
+</body>
+</html>
