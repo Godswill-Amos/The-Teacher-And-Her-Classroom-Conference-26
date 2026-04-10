@@ -22,10 +22,72 @@ async function startServer() {
 
   // Lead Capture
   app.post("/api/capture-lead", async (req, res) => {
-    const leadData = req.body;
-    console.log("Lead Captured:", leadData);
-    // In a real app, save to DB or Google Sheets
-    res.json({ status: "success" });
+    const {
+      name,
+      email,
+      phone,
+      status,
+      gateway,
+      price,
+      reference
+    } = req.body;
+
+    // Split full name into first and last
+    const nameParts = (name || '').trim().split(' ');
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.slice(1).join(' ') || '';
+
+    // Assign tags based on payment status
+    const tags = status === 'paid'
+      ? ['Paid - Conference 2026', price <= 7000 ? 'Early Bird' : 'Standard Price']
+      : ['Checkout Started'];
+
+    const contactPayload = {
+      email,
+      first_name: firstName,
+      last_name: lastName,
+      phone,
+      tags,
+      lists: ['Conference 2026'],
+      custom_values: {
+        payment_gateway: gateway || 'flutterwave',
+        amount_paid: price ? `₦${price.toLocaleString()}` : '',
+        payment_reference: reference || '',
+        checkout_status: status || 'started'
+      }
+    };
+
+    try {
+      const wpUser = process.env.WP_USERNAME;
+      const wpPass = process.env.WP_APP_PASSWORD;
+      const wpUrl = process.env.WP_URL;
+
+      if (!wpUser || !wpPass || !wpUrl) {
+        console.log("WP credentials missing, skipping Fluent CRM sync");
+        return res.json({ success: true, message: "WP credentials missing" });
+      }
+
+      // Encode credentials for Basic Auth
+      const credentials = Buffer.from(`${wpUser}:${wpPass}`).toString('base64');
+
+      const response = await axios.post(
+        `${wpUrl}/wp-json/fluent-crm/v2/contacts`,
+        contactPayload,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Basic ${credentials}`
+          }
+        }
+      );
+
+      console.log('Fluent CRM response:', response.data);
+      res.status(200).json({ success: true, data: response.data });
+
+    } catch (error: any) {
+      console.error('Capture lead error:', error.response?.data || error.message);
+      res.status(200).json({ success: true });
+    }
   });
 
   // Paystack Verification
