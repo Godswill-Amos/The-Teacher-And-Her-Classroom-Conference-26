@@ -21,8 +21,8 @@ import {
   Shield
 } from 'lucide-react';
 
-declare const PaystackPop: any;
-declare const FlutterwaveCheckout: any;
+import { usePaystackPayment } from 'react-paystack';
+import { useFlutterwave, closePaymentModal } from 'flutterwave-react-v3';
 
 // --- Global Logic ---
 const EARLY_BIRD_END = new Date('2026-06-30T23:59:59');
@@ -50,6 +50,37 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
   const price = getCurrentPrice();
   const formatted = formatPrice(price);
   const isEarlyBird = new Date() < EARLY_BIRD_END;
+
+  // Paystack Config
+  const paystackConfig = {
+    reference: 'TAHCC_' + Date.now(),
+    email: formData.email,
+    amount: price * 100,
+    publicKey: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || '',
+  };
+
+  const initializePaystack = usePaystackPayment(paystackConfig);
+
+  // Flutterwave Config
+  const flutterwaveConfig = {
+    public_key: import.meta.env.VITE_FLUTTERWAVE_PUBLIC_KEY || '',
+    tx_ref: 'TAHCC_FW_' + Date.now(),
+    amount: price,
+    currency: 'NGN',
+    payment_options: 'card,mobilemoney,ussd',
+    customer: {
+      email: formData.email,
+      phone_number: formData.phone,
+      name: formData.fullName,
+    },
+    customizations: {
+      title: 'Conference 2026',
+      description: 'Registration for Conference 2026',
+      logo: 'https://picsum.photos/seed/edu/200/200',
+    },
+  };
+
+  const handleFlutterwavePayment = useFlutterwave(flutterwaveConfig);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.id]: e.target.value });
@@ -89,72 +120,53 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
     await captureAbandonedLead('checkout_started');
 
     if (selectedGateway === 'paystack') {
-      initiatePaystack();
-    } else {
-      initiateFlutterwave();
-    }
-  };
-
-  const initiatePaystack = () => {
-    if (typeof PaystackPop === 'undefined') {
-      setError('Payment system is loading. Please try again in a moment.');
-      setIsLoading(false);
-      return;
-    }
-
-    const handler = PaystackPop.setup({
-      key: 'PASTE_YOUR_PAYSTACK_PUBLIC_KEY_HERE',
-      email: formData.email,
-      amount: price * 100,
-      currency: 'NGN',
-      ref: 'TAHCC_' + Date.now(),
-      callback: (response: any) => {
-        handlePaymentSuccess(response.reference, 'paystack');
-      },
-      onClose: () => {
-        handlePaymentCancelled();
-      }
-    });
-    handler.openIframe();
-  };
-
-  const initiateFlutterwave = () => {
-    if (typeof FlutterwaveCheckout === 'undefined') {
-      setError('Payment system is loading. Please try again in a moment.');
-      setIsLoading(false);
-      return;
-    }
-
-    FlutterwaveCheckout({
-      public_key: 'PASTE_YOUR_FLUTTERWAVE_PUBLIC_KEY_HERE',
-      tx_ref: 'TAHCC_FW_' + Date.now(),
-      amount: price,
-      currency: 'NGN',
-      payment_options: 'card, ussd, banktransfer',
-      customer: {
-        email: formData.email,
-        phone_number: formData.phone,
-        name: formData.fullName
-      },
-      customizations: {
-        title: 'The Teacher And Her Classroom Conference 2026',
-        description: 'Conference Registration',
-        logo: 'SGE_Logo.png'
-      },
-      callback: (response: any) => {
-        if (response.status === 'successful') {
-          handlePaymentSuccess(response.transaction_id, 'flutterwave');
+      initializePaystack({
+        onSuccess: (response: any) => {
+          handlePaymentSuccess(response.reference, 'paystack');
+        },
+        onClose: () => {
+          handlePaymentCancelled();
         }
-      },
-      onclose: () => {
-        handlePaymentCancelled();
-      }
-    });
+      });
+    } else {
+      handleFlutterwavePayment({
+        callback: (response: any) => {
+          if (response.status === 'successful') {
+            handlePaymentSuccess(response.transaction_id, 'flutterwave');
+          }
+          closePaymentModal();
+        },
+        onClose: () => {
+          handlePaymentCancelled();
+        }
+      });
+    }
   };
 
   const handlePaymentSuccess = async (reference: string, gateway: string) => {
-    await captureAbandonedLead('paid', reference);
-    window.location.href = `thankyou.html?ref=${reference}&gateway=${gateway}`;
+    setIsLoading(true);
+    try {
+      // Verify payment on the server
+      const endpoint = gateway === 'paystack' 
+        ? `/api/verify-paystack?reference=${reference}`
+        : `/api/verify-flutterwave?transaction_id=${reference}`;
+      
+      const res = await fetch(endpoint);
+      const data = await res.json();
+
+      if (data.status === 'success') {
+        await captureAbandonedLead('paid', reference);
+        // In a real app, redirect to a success page or show success UI
+        alert(`Payment Successful! Reference: ${reference}`);
+        onClose();
+      } else {
+        setError('Payment verification failed. Please contact support.');
+      }
+    } catch (err) {
+      setError('An error occurred during verification.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handlePaymentCancelled = () => {
