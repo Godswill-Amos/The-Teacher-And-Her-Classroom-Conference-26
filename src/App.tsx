@@ -21,7 +21,6 @@ import {
   Shield
 } from 'lucide-react';
 
-import { usePaystackPayment } from 'react-paystack';
 import { useFlutterwave, closePaymentModal } from 'flutterwave-react-v3';
 
 // --- Global Logic ---
@@ -40,7 +39,6 @@ function formatPrice(amount: number) {
 // --- Checkout Modal ---
 
 const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
-  const [selectedGateway, setSelectedGateway] = useState<'paystack' | 'flutterwave'>('paystack');
   const [formData, setFormData] = useState({ fullName: '', email: '', phone: '' });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,16 +48,6 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
   const price = getCurrentPrice();
   const formatted = formatPrice(price);
   const isEarlyBird = new Date() < EARLY_BIRD_END;
-
-  // Paystack Config
-  const paystackConfig = {
-    reference: 'TAHCC_' + Date.now(),
-    email: formData.email,
-    amount: price * 100,
-    publicKey: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || '',
-  };
-
-  const initializePaystack = usePaystackPayment(paystackConfig);
 
   // Flutterwave Config
   const flutterwaveConfig = {
@@ -94,7 +82,7 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
         body: JSON.stringify({
           ...formData,
           name: formData.fullName,
-          gateway: selectedGateway,
+          gateway: 'flutterwave',
           price,
           status,
           reference,
@@ -119,28 +107,17 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
 
     await captureAbandonedLead('checkout_started');
 
-    if (selectedGateway === 'paystack') {
-      initializePaystack({
-        onSuccess: (response: any) => {
-          handlePaymentSuccess(response.reference, 'paystack');
-        },
-        onClose: () => {
-          handlePaymentCancelled();
+    handleFlutterwavePayment({
+      callback: (response: any) => {
+        if (response.status === 'successful') {
+          handlePaymentSuccess(response.transaction_id, 'flutterwave');
         }
-      });
-    } else {
-      handleFlutterwavePayment({
-        callback: (response: any) => {
-          if (response.status === 'successful') {
-            handlePaymentSuccess(response.transaction_id, 'flutterwave');
-          }
-          closePaymentModal();
-        },
-        onClose: () => {
-          handlePaymentCancelled();
-        }
-      });
-    }
+        closePaymentModal();
+      },
+      onClose: () => {
+        handlePaymentCancelled();
+      }
+    });
   };
 
   const handlePaymentSuccess = async (reference: string, gateway: string) => {
@@ -201,7 +178,7 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
             </button>
 
             {/* Order Summary - Top on mobile, Left on desktop */}
-            <div className="bg-bg-section border-r border-border-custom order-1 lg:order-1">
+            <div className="bg-bg-section border-r border-border-custom order-1 lg:order-1 pt-12 lg:pt-0">
               {/* Mobile Toggle Header */}
               <button 
                 type="button"
@@ -263,7 +240,7 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
                     <Lock className="w-5 h-5 text-primary-orange shrink-0" />
                     <div>
                       <div className="text-[11px] font-bold text-text-white uppercase tracking-wider">Safe Checkout</div>
-                      <div className="text-[10px] text-text-muted">Powered by Paystack & Flutterwave</div>
+                      <div className="text-[10px] text-text-muted">Powered by Flutterwave</div>
                     </div>
                   </div>
                 </div>
@@ -310,26 +287,6 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
                     placeholder="+234 800 000 0000" 
                     className="w-full bg-bg-section border border-primary-orange/20 rounded-md px-4 py-3 text-text-white focus:outline-none focus:border-primary-orange transition-colors"
                   />
-                </div>
-
-                <div className="pt-4">
-                  <label className="block font-mono text-[10px] font-bold text-text-muted uppercase tracking-wider mb-3">Select Payment Method</label>
-                  <div className="grid grid-cols-2 gap-4">
-                    <button 
-                      type="button"
-                      onClick={() => setSelectedGateway('paystack')}
-                      className={`flex items-center justify-center gap-2 p-4 rounded-md border font-mono text-[11px] font-bold tracking-wider transition-all ${selectedGateway === 'paystack' ? 'bg-primary-orange/10 border-primary-orange text-primary-orange' : 'bg-bg-section border-primary-orange/20 text-text-muted hover:border-primary-orange/40'}`}
-                    >
-                      <CreditCard className="w-4 h-4" /> Paystack
-                    </button>
-                    <button 
-                      type="button"
-                      onClick={() => setSelectedGateway('flutterwave')}
-                      className={`flex items-center justify-center gap-2 p-4 rounded-md border font-mono text-[11px] font-bold tracking-wider transition-all ${selectedGateway === 'flutterwave' ? 'bg-primary-orange/10 border-primary-orange text-primary-orange' : 'bg-bg-section border-primary-orange/20 text-text-muted hover:border-primary-orange/40'}`}
-                    >
-                      <Zap className="w-4 h-4" /> Flutterwave
-                    </button>
-                  </div>
                 </div>
 
                 {error && (
@@ -385,7 +342,7 @@ const AnnouncementBar = () => {
   );
 };
 
-const Hero = ({ onOpenCheckout }: { onOpenCheckout: () => void }) => {
+const Hero = ({ onScrollToPricing }: { onScrollToPricing: () => void }) => {
   const price = getCurrentPrice();
   const formatted = formatPrice(price);
   const isEarlyBird = new Date() < EARLY_BIRD_END;
@@ -566,10 +523,10 @@ const Hero = ({ onOpenCheckout }: { onOpenCheckout: () => void }) => {
             className="absolute -inset-1 bg-primary-orange/30 blur-xl rounded-full"
           />
           <button 
-            onClick={onOpenCheckout}
+            onClick={onScrollToPricing}
             className="relative bg-primary-orange text-white font-mono text-sm md:text-base font-bold tracking-wider uppercase px-10 md:px-14 py-5 md:py-6 rounded-sm transition-all hover:bg-primary-dark hover:-translate-y-1 shadow-[0_10px_40px_rgba(249,115,22,0.4)] flex items-center gap-3 group"
           >
-            REGISTER NOW · {formatted} {isEarlyBird ? 'EARLY BIRD' : ''}
+            JOIN THE 2026 CONFERENCE NOW
             <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
           </button>
         </motion.div>
@@ -627,7 +584,7 @@ const LeadSection = () => (
   </section>
 );
 
-const SolutionSection = ({ onOpenCheckout }: { onOpenCheckout: () => void }) => {
+const SolutionSection = ({ onScrollToPricing }: { onScrollToPricing: () => void }) => {
   const isEarlyBird = new Date() < EARLY_BIRD_END;
 
   return (
@@ -643,10 +600,10 @@ const SolutionSection = ({ onOpenCheckout }: { onOpenCheckout: () => void }) => 
         <p className="text-base md:text-lg text-[#b8c8df] mb-3.5 max-w-[620px] mx-auto">That is exactly why <strong className="text-text-white">The Teacher And Her Classroom Conference 2026</strong> was created.</p>
         <p className="text-base md:text-lg text-[#b8c8df] mb-7 max-w-[620px] mx-auto">This is not a boring seminar where you sit and listen and forget everything by Monday. This is a live, hands-on, 2-day virtual workshop made just for Nigerian teachers and school leaders who are ready to stop coping and start growing.</p>
         <button 
-          onClick={onOpenCheckout}
+          onClick={onScrollToPricing}
           className="inline-block bg-primary-orange text-white font-mono text-sm font-bold tracking-wider uppercase px-11 py-4.5 rounded-sm transition-all hover:bg-primary-dark hover:-translate-y-0.5 shadow-[0_4px_28px_rgba(249,115,22,0.4)]"
         >
-          SECURE MY {isEarlyBird ? 'EARLY BIRD' : ''} SPOT →
+          I'M READY TO TRANSFORM MY CLASSROOM →
         </button>
       </motion.div>
     </section>
@@ -1009,7 +966,7 @@ const PricingSection = ({ onOpenCheckout }: { onOpenCheckout: () => void }) => {
               onClick={onOpenCheckout}
               className="block w-full bg-primary-orange text-white text-center font-mono text-[15px] font-bold tracking-wider uppercase py-5 rounded-sm transition-all hover:bg-primary-dark hover:-translate-y-0.5 shadow-[0_4px_28px_rgba(249,115,22,0.4)]"
             >
-              YES · REGISTER ME FOR {formatted} →
+              YES, SECURE MY SPOT NOW →
             </button>
             <p className="text-center mt-3.5 text-xs text-text-dim font-mono">
               🔒 Secure payment via Flutterwave &nbsp;|&nbsp; Conference: Aug 20–21, 2026
@@ -1089,7 +1046,7 @@ const FAQSection = () => {
   );
 };
 
-const FinalCTA = ({ onOpenCheckout }: { onOpenCheckout: () => void }) => {
+const FinalCTA = ({ onScrollToPricing }: { onScrollToPricing: () => void }) => {
   const price = getCurrentPrice();
   const formatted = formatPrice(price);
   const isEarlyBird = new Date() < EARLY_BIRD_END;
@@ -1103,10 +1060,10 @@ const FinalCTA = ({ onOpenCheckout }: { onOpenCheckout: () => void }) => {
         <h2 className="text-3xl md:text-5xl lg:text-6xl text-text-white max-w-[800px] mx-auto mb-4">Your Students Need A <span className="text-primary-orange">Future-Ready</span> Teacher.</h2>
         <p className="text-[17px] text-text-muted max-w-[520px] mx-auto mb-9">The price goes up on July 1st. The conference starts on August 20th. Sign up today and take the first step.</p>
         <button 
-          onClick={onOpenCheckout}
+          onClick={onScrollToPricing}
           className="inline-block bg-primary-orange text-white font-mono text-[15px] font-bold tracking-wider uppercase px-13 py-5 rounded-sm transition-all hover:bg-primary-dark hover:-translate-y-0.5 shadow-[0_4px_28px_rgba(249,115,22,0.4)]"
         >
-          REGISTER NOW · {formatted} {isEarlyBird ? 'EARLY BIRD' : ''} →
+          CLAIM YOUR SEAT TODAY →
         </button>
         <p className="mt-4.5 text-xs text-text-dim font-mono tracking-wider">
           Price rises to ₦10,000 on July 1st &nbsp;·&nbsp; Powered by Stephanie Global Education
@@ -1130,14 +1087,21 @@ const Footer = () => (
 export default function App() {
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
 
+  const scrollToPricing = () => {
+    const element = document.getElementById('register');
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
   return (
     <div className="relative min-h-screen">
       <div className="noise-overlay" />
       <AnnouncementBar />
       <main>
-        <Hero onOpenCheckout={() => setIsCheckoutOpen(true)} />
+        <Hero onScrollToPricing={scrollToPricing} />
         <LeadSection />
-        <SolutionSection onOpenCheckout={() => setIsCheckoutOpen(true)} />
+        <SolutionSection onScrollToPricing={scrollToPricing} />
         <IncludedSection />
         <HostSection />
         <SpeakersSection />
@@ -1146,7 +1110,7 @@ export default function App() {
         <PricingSection onOpenCheckout={() => setIsCheckoutOpen(true)} />
         <GuaranteeSection />
         <FAQSection />
-        <FinalCTA onOpenCheckout={() => setIsCheckoutOpen(true)} />
+        <FinalCTA onScrollToPricing={scrollToPricing} />
       </main>
       <Footer />
       <CheckoutModal isOpen={isCheckoutOpen} onClose={() => setIsCheckoutOpen(false)} />

@@ -90,33 +90,6 @@ async function startServer() {
     }
   });
 
-  // Paystack Verification
-  app.get("/api/verify-paystack", async (req, res) => {
-    const { reference } = req.query;
-    if (!reference) return res.status(400).json({ error: "Reference is required" });
-
-    try {
-      const response = await axios.get(
-        `https://api.paystack.co/transaction/verify/${reference}`,
-        {
-          headers: {
-            Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
-          },
-        }
-      );
-
-      if (response.data.data.status === "success") {
-        // Here you would typically save the registration to your database
-        res.json({ status: "success", data: response.data.data });
-      } else {
-        res.status(400).json({ status: "failed", message: "Transaction not successful" });
-      }
-    } catch (error: any) {
-      console.error("Paystack Verification Error:", error.response?.data || error.message);
-      res.status(500).json({ error: "Verification failed" });
-    }
-  });
-
   // Flutterwave Verification
   app.get("/api/verify-flutterwave", async (req, res) => {
     const { transaction_id } = req.query;
