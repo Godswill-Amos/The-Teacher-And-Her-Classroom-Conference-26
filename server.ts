@@ -67,12 +67,21 @@ async function startServer() {
         return res.json({ success: true, message: "WP credentials missing" });
       }
 
+      // Clean WP URL and ensure it has a protocol
+      let cleanWpUrl = wpUrl.trim().replace(/\/$/, "");
+      if (!cleanWpUrl.startsWith('http')) {
+        cleanWpUrl = `https://${cleanWpUrl}`;
+      }
+
       // Encode credentials for Basic Auth
       const credentials = Buffer.from(`${wpUser}:${wpPass}`).toString('base64');
 
       const response = await axios.post(
-        `${wpUrl}/wp-json/fluent-crm/v2/contacts`,
-        contactPayload,
+        `${cleanWpUrl}/wp-json/fluent-crm/v2/contacts`,
+        {
+          ...contactPayload,
+          status: 'subscribed' // Ensure contact is marked as subscribed
+        },
         {
           headers: {
             'Content-Type': 'application/json',
@@ -85,7 +94,8 @@ async function startServer() {
       res.status(200).json({ success: true, data: response.data });
 
     } catch (error: any) {
-      console.error('Capture lead error:', error.response?.data || error.message);
+      const errorData = error.response?.data || error.message;
+      console.error('Capture lead error:', typeof errorData === 'object' ? JSON.stringify(errorData, null, 2) : errorData);
       res.status(200).json({ success: true });
     }
   });
