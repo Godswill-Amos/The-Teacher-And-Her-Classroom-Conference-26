@@ -22,6 +22,8 @@ import {
 } from 'lucide-react';
 
 import { useFlutterwave, closePaymentModal } from 'flutterwave-react-v3';
+import PhoneInput from 'react-phone-input-2';
+import 'react-phone-input-2/lib/style.css';
 
 // --- Global Logic ---
 const EARLY_BIRD_END = new Date('2026-06-30T23:59:59');
@@ -263,7 +265,7 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
                     value={formData.fullName}
                     onChange={handleInputChange}
                     placeholder="John Doe" 
-                    className="w-full bg-bg-section border border-primary-orange/20 rounded-md px-4 py-3 text-text-white focus:outline-none focus:border-primary-orange transition-colors"
+                    className="w-full bg-transparent border border-primary-orange/20 rounded-md px-4 py-3 text-text-white focus:outline-none focus:border-primary-orange transition-colors"
                   />
                 </div>
                 <div className="space-y-2">
@@ -274,19 +276,27 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
                     value={formData.email}
                     onChange={handleInputChange}
                     placeholder="john@example.com" 
-                    className="w-full bg-bg-section border border-primary-orange/20 rounded-md px-4 py-3 text-text-white focus:outline-none focus:border-primary-orange transition-colors"
+                    className="w-full bg-transparent border border-primary-orange/20 rounded-md px-4 py-3 text-text-white focus:outline-none focus:border-primary-orange transition-colors"
                   />
                 </div>
                 <div className="space-y-2">
                   <label className="block font-mono text-[10px] font-bold text-text-muted uppercase tracking-wider" htmlFor="phone">Phone Number</label>
-                  <input 
-                    type="tel" 
-                    id="phone" 
-                    value={formData.phone}
-                    onChange={handleInputChange}
-                    placeholder="+234 800 000 0000" 
-                    className="w-full bg-bg-section border border-primary-orange/20 rounded-md px-4 py-3 text-text-white focus:outline-none focus:border-primary-orange transition-colors"
-                  />
+                  <div className="phone-input-container">
+                    <PhoneInput
+                      country={'ng'}
+                      value={formData.phone}
+                      onChange={(phone) => setFormData({ ...formData, phone })}
+                      inputProps={{
+                        id: 'phone',
+                        required: true,
+                      }}
+                      containerClass="!w-full"
+                      inputClass="!w-full !bg-transparent !border !border-primary-orange/20 !rounded-md !px-4 !py-3 !h-auto !text-text-white !focus:outline-none !focus:border-primary-orange !transition-colors !pl-12"
+                      buttonClass="!bg-transparent !border-none !rounded-l-md !hover:bg-transparent"
+                      dropdownClass="!bg-bg-card !text-text-white !border-border-custom"
+                      searchClass="!bg-bg-section !text-text-white"
+                    />
+                  </div>
                 </div>
 
                 {error && (
