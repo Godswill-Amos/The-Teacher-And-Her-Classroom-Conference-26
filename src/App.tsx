@@ -18,7 +18,21 @@ import {
   CreditCard,
   Zap,
   Lock,
-  Shield
+  Shield,
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
+  Instagram,
+  Twitter,
+  Linkedin,
+  Youtube,
+  Mail,
+  ExternalLink,
+  Download,
+  Video,
+  Smartphone,
+  Copy,
+  Share2
 } from 'lucide-react';
 
 import { useFlutterwave, closePaymentModal } from 'flutterwave-react-v3';
@@ -51,8 +65,7 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
   const formatted = formatPrice(price);
   const isEarlyBird = new Date() < EARLY_BIRD_END;
 
-  // Flutterwave Config
-  const flutterwaveConfig = {
+  const flutterwaveConfig = React.useMemo(() => ({
     public_key: import.meta.env.VITE_FLUTTERWAVE_PUBLIC_KEY || '',
     tx_ref: 'TAHCC_FW_' + Date.now(),
     amount: price,
@@ -68,7 +81,7 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
       description: 'Registration for Conference 2026',
       logo: 'https://picsum.photos/seed/edu/200/200',
     },
-  };
+  }), [price, formData, import.meta.env.VITE_FLUTTERWAVE_PUBLIC_KEY]);
 
   const handleFlutterwavePayment = useFlutterwave(flutterwaveConfig);
 
@@ -103,13 +116,19 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
     if (!formData.email || !formData.email.includes('@')) return setError('Please enter a valid email address.');
     if (!formData.phone || formData.phone.length < 8) return setError('Please enter a valid phone number.');
 
+    if (!import.meta.env.VITE_FLUTTERWAVE_PUBLIC_KEY) {
+      return setError('Payment system is currently being configured. Please try again later.');
+    }
+
     setIsLoading(true);
     setError(null);
     setCancelMsg(false);
 
-    await captureAbandonedLead('checkout_started');
+    // Capture lead without awaiting to avoid blocking the payment popup
+    captureAbandonedLead('checkout_started');
 
     handleFlutterwavePayment({
+      ...flutterwaveConfig,
       callback: (response: any) => {
         if (response.status === 'successful') {
           handlePaymentSuccess(response.transaction_id, 'flutterwave');
@@ -125,7 +144,6 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
   const handlePaymentSuccess = async (reference: string, gateway: string) => {
     setIsLoading(true);
     try {
-      // Verify payment on the server
       const endpoint = gateway === 'paystack' 
         ? `/api/verify-paystack?reference=${reference}`
         : `/api/verify-flutterwave?transaction_id=${reference}`;
@@ -135,8 +153,7 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
 
       if (data.status === 'success') {
         await captureAbandonedLead('paid', reference);
-        // In a real app, redirect to a success page or show success UI
-        alert(`Payment Successful! Reference: ${reference}`);
+        window.dispatchEvent(new CustomEvent('payment-success', { detail: { reference } }));
         onClose();
       } else {
         setError('Payment verification failed. Please contact support.');
@@ -343,11 +360,13 @@ const AnnouncementBar = () => {
   const isEarlyBird = new Date() < EARLY_BIRD_END;
 
   return (
-    <div className="bg-primary-orange text-white text-center py-2.5 px-5 font-mono text-[13px] font-bold tracking-wider sticky top-0 z-50 shadow-md">
-      <span className="md:hidden">🔥 Early Bird ends June 30th</span>
+    <div className="bg-primary-orange text-white text-center py-2.5 px-5 font-mono text-[13px] font-bold tracking-wider sticky top-0 z-50 shadow-md flex items-center justify-center gap-2">
+      <Zap className="w-4 h-4 fill-white animate-pulse" />
+      <span className="md:hidden">Early Bird ends June 30th</span>
       <span className="hidden md:inline">
-        🔥 {isEarlyBird ? 'EARLY BIRD ENDS' : 'REGISTRATION OPEN'} <span className="text-bg-dark bg-white/90 px-1.5 py-0.5 rounded-xs mx-1">JUNE 30TH</span> · LOCK IN YOUR SPOT AT <span className="text-bg-dark bg-white/90 px-1.5 py-0.5 rounded-xs mx-1">{formatted}</span> BEFORE PRICE RISES TO ₦10,000
+        {isEarlyBird ? 'EARLY BIRD ENDS' : 'REGISTRATION OPEN'} <span className="text-bg-dark bg-white/90 px-1.5 py-0.5 rounded-xs mx-1">JUNE 30TH</span> · LOCK IN YOUR SPOT AT <span className="text-bg-dark bg-white/90 px-1.5 py-0.5 rounded-xs mx-1">{formatted}</span> BEFORE PRICE RISES TO ₦10,000
       </span>
+      <Zap className="w-4 h-4 fill-white animate-pulse hidden md:block" />
     </div>
   );
 };
@@ -524,7 +543,7 @@ const Hero = ({ onScrollToPricing }: { onScrollToPricing: () => void }) => {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6 }}
+          transition={{ delay: 0.4 }}
           className="relative inline-block"
         >
           <motion.div 
@@ -545,9 +564,9 @@ const Hero = ({ onScrollToPricing }: { onScrollToPricing: () => void }) => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 0.6 }}
           transition={{ delay: 1 }}
-          className="mt-8 text-xs text-text-dim font-mono tracking-widest uppercase"
+          className="mt-8 text-xs text-text-dim font-mono tracking-widest uppercase flex items-center justify-center gap-2"
         >
-          🔒 Secure payment via Flutterwave &nbsp;|&nbsp; Price rises to ₦10,000 on July 1st
+          <Lock className="w-3 h-3" /> Secure payment via Flutterwave &nbsp;|&nbsp; Price rises to ₦10,000 on July 1st
         </motion.p>
       </div>
     </section>
@@ -896,18 +915,26 @@ const ComparisonTable = () => (
           </thead>
           <tbody className="text-[11px] md:text-sm">
             {[
-              ["Tools made for Nigerian teachers", "❌ Too general", "✅ Made for you"],
-              ["Ask questions live", "❌ Not possible", "✅ Both days"],
-              ["Join a teacher community", "❌ Not included", "✅ Included"],
-              ["Get a certificate", "❌ Not included", "✅ Included"],
-              ["Watch recordings later", "❌ Not always", "✅ Yours to keep"],
-              ["Download tools and resources", "❌ All over the place", "✅ Ready for you"],
-              ["3 expert speakers together", "❌ Hours of searching", "✅ 2 days"]
+              ["Tools made for Nigerian teachers", "Too general", "Made for you"],
+              ["Ask questions live", "Not possible", "Both days"],
+              ["Join a teacher community", "Not included", "Included"],
+              ["Get a certificate", "Not included", "Included"],
+              ["Watch recordings later", "Not always", "Yours to keep"],
+              ["Download tools and resources", "All over the place", "Ready for you"],
+              ["3 expert speakers together", "Hours of searching", "2 days"]
             ].map((row, i) => (
               <tr key={i} className={`border-b border-border-custom ${i % 2 === 1 ? 'bg-[rgba(255,255,255,0.018)]' : ''}`}>
                 <td className="p-2.5 md:p-3.5 px-3 md:px-5 text-text-white font-semibold leading-tight">{row[0]}</td>
-                <td className="p-2.5 md:p-3.5 px-3 md:px-5 text-text-dim leading-tight">{row[1]}</td>
-                <td className="p-2.5 md:p-3.5 px-3 md:px-5 text-gold font-bold bg-[rgba(240,165,0,0.04)] leading-tight">{row[2]}</td>
+                <td className="p-2.5 md:p-3.5 px-3 md:px-5 text-text-dim leading-tight flex items-center gap-2">
+                  <XCircle className="w-3.5 h-3.5 text-primary-orange/40 shrink-0" />
+                  {row[1]}
+                </td>
+                <td className="p-2.5 md:p-3.5 px-3 md:px-5 text-gold font-bold bg-[rgba(240,165,0,0.04)] leading-tight">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-gold shrink-0" />
+                    {row[2]}
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -935,10 +962,12 @@ const PricingSection = ({ onOpenCheckout }: { onOpenCheckout: () => void }) => {
           viewport={{ once: true }}
           className="max-w-[560px] mx-auto bg-bg-card border border-border-red rounded-sm overflow-hidden shadow-[0_0_60px_rgba(249,115,22,0.12)]"
         >
-          <div className="bg-primary-orange py-4.5 px-7.5 text-center">
+          <div className="bg-primary-orange py-4.5 px-7.5 text-center flex items-center justify-center gap-3">
+            <Zap className="w-4 h-4 fill-white animate-pulse" />
             <p className="font-mono text-[13px] font-bold tracking-widest uppercase text-[rgba(255,255,255,0.9)]">
-              {isEarlyBird ? '🔥 EARLY BIRD · ENDS JUNE 30TH, 2026' : 'REGISTRATION OPEN'}
+              {isEarlyBird ? 'EARLY BIRD · ENDS JUNE 30TH, 2026' : 'REGISTRATION OPEN'}
             </p>
+            <Zap className="w-4 h-4 fill-white animate-pulse" />
           </div>
           <div className="p-9 md:p-10 text-left">
             <div className="font-mono text-[15px] text-text-dim line-through mb-1">Regular Price: ₦10,000</div>
@@ -967,8 +996,9 @@ const PricingSection = ({ onOpenCheckout }: { onOpenCheckout: () => void }) => {
             </ul>
             
             {isEarlyBird && (
-              <div className="bg-[rgba(200,16,46,0.08)] border border-border-red rounded-sm p-3.5 mb-7 text-center">
-                <p className="font-mono text-xs text-primary-orange tracking-wider leading-relaxed">⚠️ Price goes up to ₦10,000 on July 1st, 2026.<br/>Sign up in May or June to pay only ₦7,000.</p>
+              <div className="bg-[rgba(200,16,46,0.08)] border border-border-red rounded-sm p-3.5 mb-7 text-center flex flex-col items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-primary-orange animate-bounce" />
+                <p className="font-mono text-xs text-primary-orange tracking-wider leading-relaxed">Price goes up to ₦10,000 on July 1st, 2026.<br/>Sign up in May or June to pay only ₦7,000.</p>
               </div>
             )}
             
@@ -978,8 +1008,8 @@ const PricingSection = ({ onOpenCheckout }: { onOpenCheckout: () => void }) => {
             >
               YES, SECURE MY SPOT NOW →
             </button>
-            <p className="text-center mt-3.5 text-xs text-text-dim font-mono">
-              🔒 Secure payment via Flutterwave &nbsp;|&nbsp; Conference: Aug 20–21, 2026
+            <p className="text-center mt-3.5 text-xs text-text-dim font-mono flex items-center justify-center gap-2">
+              <Lock className="w-3 h-3" /> Secure payment via Flutterwave &nbsp;|&nbsp; Conference: Aug 20–21, 2026
             </p>
           </div>
         </motion.div>
@@ -1008,6 +1038,172 @@ const GuaranteeSection = () => (
   </section>
 );
 
+const ThankYouPage = ({ reference }: { reference: string }) => {
+  return (
+    <div className="min-h-screen bg-bg-dark pt-24 pb-20 px-5 relative overflow-hidden">
+      <div className="noise-overlay" />
+      
+      {/* Background Glows */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[500px] bg-[radial-gradient(circle_at_50%_0%,rgba(249,115,22,0.15)_0%,transparent_70%)] pointer-events-none" />
+      
+      <div className="max-w-[1100px] mx-auto relative z-10">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center mb-16"
+        >
+          <div className="inline-flex items-center justify-center w-20 h-20 bg-primary-orange/10 rounded-full mb-6 border border-primary-orange/20">
+            <CheckCircle2 className="w-10 h-10 text-primary-orange" />
+          </div>
+          <h1 className="text-4xl md:text-6xl text-text-white mb-4">You Are <span className="text-primary-orange">Confirmed!</span></h1>
+          <p className="text-xl text-text-muted max-w-[600px] mx-auto">
+            Welcome to the future of education. Your seat is secured for August 20th. 
+            Check your email for your official receipt.
+          </p>
+          <div className="mt-6 inline-flex items-center gap-2 bg-bg-card px-4 py-2 rounded-md border border-border-custom">
+            <span className="font-mono text-[10px] text-text-dim uppercase tracking-widest">Ref:</span>
+            <span className="font-mono text-sm text-primary-orange font-bold">{reference}</span>
+          </div>
+        </motion.div>
+
+        {/* Welcome Video Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 40 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2, duration: 1 }}
+          className="max-w-[800px] mx-auto mb-16 relative group"
+        >
+          <div className="absolute -inset-4 bg-primary-orange/10 blur-3xl rounded-full opacity-50 group-hover:opacity-100 transition-opacity duration-700" />
+          <div className="relative aspect-video bg-bg-card border border-primary-orange/20 rounded-2xl overflow-hidden shadow-2xl">
+            <iframe 
+              className="w-full h-full"
+              src="https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=0&controls=1&rel=0" 
+              title="Welcome Video"
+              frameBorder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            ></iframe>
+            <div className="absolute inset-0 bg-bg-dark/20 pointer-events-none" />
+          </div>
+          <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 bg-bg-card border border-border-custom px-6 py-2 rounded-full backdrop-blur-md flex items-center gap-3 shadow-xl">
+            <div className="w-2 h-2 bg-primary-orange rounded-full animate-pulse" />
+            <span className="font-mono text-[10px] font-bold text-text-white uppercase tracking-widest">Watch Welcome Message</span>
+          </div>
+        </motion.div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Bento Grid Layout */}
+          
+          {/* Main Next Step - Large */}
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.1 }}
+            className="md:col-span-2 bg-bg-card border border-border-custom rounded-2xl p-8 relative overflow-hidden group"
+          >
+            <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
+              <Mail className="w-32 h-32 text-primary-orange" />
+            </div>
+            <div className="relative z-10">
+              <div className="w-12 h-12 bg-primary-orange/10 rounded-xl flex items-center justify-center mb-6">
+                <Mail className="w-6 h-6 text-primary-orange" />
+              </div>
+              <h3 className="text-2xl text-text-white mb-3">Check Your Inbox</h3>
+              <p className="text-text-muted mb-6 max-w-[400px]">
+                We've sent a confirmation email with your registration details. 
+                If you don't see it, check your spam folder or "Promotions" tab.
+              </p>
+              <a 
+                href="mailto:" 
+                className="inline-flex items-center gap-2 text-primary-orange font-mono text-sm font-bold hover:gap-3 transition-all"
+              >
+                OPEN YOUR EMAIL <ArrowRight className="w-4 h-4" />
+              </a>
+            </div>
+          </motion.div>
+
+          {/* WhatsApp Group - Square */}
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.2 }}
+            className="bg-[#25D366]/5 border border-[#25D366]/20 rounded-2xl p-8 flex flex-col justify-between group"
+          >
+            <div>
+              <div className="w-12 h-12 bg-[#25D366]/10 rounded-xl flex items-center justify-center mb-6">
+                <MessageCircle className="w-6 h-6 text-[#25D366]" />
+              </div>
+              <h3 className="text-xl text-text-white mb-2">Join the Community</h3>
+              <p className="text-text-muted text-sm mb-6">
+                Connect with fellow teachers in our exclusive attendee WhatsApp group.
+              </p>
+            </div>
+            <a 
+              href="#" 
+              className="w-full bg-[#25D366] text-white text-center py-4 rounded-xl font-bold hover:bg-[#128C7E] transition-colors flex items-center justify-center gap-2"
+            >
+              JOIN WHATSAPP <ExternalLink className="w-4 h-4" />
+            </a>
+          </motion.div>
+
+          {/* Calendar - Square */}
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.3 }}
+            className="bg-bg-card border border-border-custom rounded-2xl p-8 group"
+          >
+            <div className="w-12 h-12 bg-primary-orange/10 rounded-xl flex items-center justify-center mb-6">
+              <Calendar className="w-6 h-6 text-primary-orange" />
+            </div>
+            <h3 className="text-xl text-text-white mb-2">Save the Date</h3>
+            <p className="text-text-muted text-sm mb-6">
+              August 20–21, 2026. 9:00 AM Daily. Don't miss a single session.
+            </p>
+            <button className="text-primary-orange font-mono text-xs font-bold flex items-center gap-2 hover:underline">
+              <Download className="w-4 h-4" /> ADD TO CALENDAR
+            </button>
+          </motion.div>
+
+          {/* Socials - Wide */}
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.4 }}
+            className="md:col-span-2 bg-bg-card border border-border-custom rounded-2xl p-8 flex flex-col md:flex-row items-center justify-between gap-8"
+          >
+            <div>
+              <h3 className="text-xl text-text-white mb-2">Follow the Journey</h3>
+              <p className="text-text-muted text-sm">
+                Get daily tips and updates on our social media channels.
+              </p>
+            </div>
+            <div className="flex gap-4">
+              {[Instagram, Twitter, Linkedin, Youtube].map((Icon, i) => (
+                <a 
+                  key={i} 
+                  href="#" 
+                  className="w-12 h-12 bg-bg-section border border-border-custom rounded-full flex items-center justify-center text-text-muted hover:text-primary-orange hover:border-primary-orange/50 transition-all"
+                >
+                  <Icon className="w-5 h-5" />
+                </a>
+              ))}
+            </div>
+          </motion.div>
+        </div>
+
+        <div className="mt-16 text-center">
+          <button 
+            onClick={() => window.location.reload()}
+            className="text-text-dim hover:text-text-white transition-colors font-mono text-xs tracking-widest uppercase"
+          >
+            ← BACK TO HOME
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 const FAQSection = () => {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
@@ -1096,6 +1292,15 @@ const Footer = () => (
 
 export default function App() {
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [successRef, setSuccessRef] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleSuccess = (e: any) => {
+      setSuccessRef(e.detail.reference);
+    };
+    window.addEventListener('payment-success', handleSuccess);
+    return () => window.removeEventListener('payment-success', handleSuccess);
+  }, []);
 
   const scrollToPricing = () => {
     const element = document.getElementById('register');
@@ -1103,6 +1308,10 @@ export default function App() {
       element.scrollIntoView({ behavior: 'smooth' });
     }
   };
+
+  if (successRef) {
+    return <ThankYouPage reference={successRef} />;
+  }
 
   return (
     <div className="relative min-h-screen">
