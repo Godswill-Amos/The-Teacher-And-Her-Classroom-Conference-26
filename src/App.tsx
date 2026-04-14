@@ -1319,7 +1319,8 @@ export default function App() {
   };
 
   if (successRef) {
-    return <ThankYouPage reference={successRef} />;
+    window.location.href = `/thankyou.html?ref=${successRef}`;
+    return null;
   }
 
   return (
