@@ -105,6 +105,11 @@ async function startServer() {
     const { transaction_id } = req.query;
     if (!transaction_id) return res.status(400).json({ error: "Transaction ID is required" });
 
+    if (!process.env.FLUTTERWAVE_SECRET_KEY) {
+      console.error("FLUTTERWAVE_SECRET_KEY is missing in environment variables");
+      return res.status(500).json({ error: "Payment verification is not configured (Missing Secret Key)" });
+    }
+
     try {
       const response = await axios.get(
         `https://api.flutterwave.com/v3/transactions/${transaction_id}/verify`,

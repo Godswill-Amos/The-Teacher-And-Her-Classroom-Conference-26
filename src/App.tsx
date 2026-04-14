@@ -117,7 +117,8 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
     if (!formData.phone || formData.phone.length < 8) return setError('Please enter a valid phone number.');
 
     if (!import.meta.env.VITE_FLUTTERWAVE_PUBLIC_KEY) {
-      return setError('Payment system is currently being configured. Please try again later.');
+      console.error('Flutterwave Public Key is missing. Please ensure VITE_FLUTTERWAVE_PUBLIC_KEY is set in your environment variables.');
+      return setError('Payment system is currently being configured (Missing API Key). Please ensure your Flutterwave Public Key is added to the app settings.');
     }
 
     setIsLoading(true);
@@ -1052,18 +1053,15 @@ const ThankYouPage = ({ reference }: { reference: string }) => {
           animate={{ opacity: 1, y: 0 }}
           className="text-center mb-16"
         >
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-primary-orange/10 rounded-full mb-6 border border-primary-orange/20">
-            <CheckCircle2 className="w-10 h-10 text-primary-orange" />
+          <div className="mb-8 inline-flex items-center gap-2 bg-bg-card px-4 py-2 rounded-md border border-border-custom">
+            <span className="font-mono text-[10px] text-text-dim uppercase tracking-widest">Registration Confirmation:</span>
+            <span className="font-mono text-sm text-primary-orange font-bold">{reference}</span>
           </div>
           <h1 className="text-4xl md:text-6xl text-text-white mb-4">You Are <span className="text-primary-orange">Confirmed!</span></h1>
           <p className="text-xl text-text-muted max-w-[600px] mx-auto">
             Welcome to the future of education. Your seat is secured for August 20th. 
             Check your email for your official receipt.
           </p>
-          <div className="mt-6 inline-flex items-center gap-2 bg-bg-card px-4 py-2 rounded-md border border-border-custom">
-            <span className="font-mono text-[10px] text-text-dim uppercase tracking-widest">Ref:</span>
-            <span className="font-mono text-sm text-primary-orange font-bold">{reference}</span>
-          </div>
         </motion.div>
 
         {/* Welcome Video Section */}
@@ -1099,13 +1097,13 @@ const ThankYouPage = ({ reference }: { reference: string }) => {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.1 }}
-            className="md:col-span-2 bg-bg-card border border-border-custom rounded-2xl p-8 relative overflow-hidden group"
+            className="md:col-span-2 bg-bg-card border border-border-custom rounded-2xl p-8 relative overflow-hidden group shadow-xl"
           >
-            <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
-              <Mail className="w-32 h-32 text-primary-orange" />
+            <div className="absolute -right-4 -bottom-4 opacity-[0.03] group-hover:opacity-[0.08] transition-opacity pointer-events-none">
+              <Mail className="w-48 h-48 text-white" />
             </div>
             <div className="relative z-10">
-              <div className="w-12 h-12 bg-primary-orange/10 rounded-xl flex items-center justify-center mb-6">
+              <div className="w-12 h-12 bg-primary-orange/10 rounded-xl flex items-center justify-center mb-6 group-hover:bg-primary-orange/20 transition-colors">
                 <Mail className="w-6 h-6 text-primary-orange" />
               </div>
               <h3 className="text-2xl text-text-white mb-3">Check Your Inbox</h3>
@@ -1127,10 +1125,13 @@ const ThankYouPage = ({ reference }: { reference: string }) => {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.2 }}
-            className="bg-[#25D366]/5 border border-[#25D366]/20 rounded-2xl p-8 flex flex-col justify-between group"
+            className="bg-[#25D366]/5 border border-[#25D366]/20 rounded-2xl p-8 flex flex-col justify-between group relative overflow-hidden shadow-xl"
           >
-            <div>
-              <div className="w-12 h-12 bg-[#25D366]/10 rounded-xl flex items-center justify-center mb-6">
+            <div className="absolute -right-4 -bottom-4 opacity-[0.03] group-hover:opacity-[0.08] transition-opacity pointer-events-none">
+              <MessageCircle className="w-32 h-32 text-white" />
+            </div>
+            <div className="relative z-10">
+              <div className="w-12 h-12 bg-[#25D366]/10 rounded-xl flex items-center justify-center mb-6 group-hover:bg-[#25D366]/20 transition-colors">
                 <MessageCircle className="w-6 h-6 text-[#25D366]" />
               </div>
               <h3 className="text-xl text-text-white mb-2">Join the Community</h3>
@@ -1140,7 +1141,7 @@ const ThankYouPage = ({ reference }: { reference: string }) => {
             </div>
             <a 
               href="#" 
-              className="w-full bg-[#25D366] text-white text-center py-4 rounded-xl font-bold hover:bg-[#128C7E] transition-colors flex items-center justify-center gap-2"
+              className="relative z-10 w-full bg-[#25D366] text-white text-center py-4 rounded-xl font-bold hover:bg-[#128C7E] transition-colors flex items-center justify-center gap-2"
             >
               JOIN WHATSAPP <ExternalLink className="w-4 h-4" />
             </a>
@@ -1151,18 +1152,23 @@ const ThankYouPage = ({ reference }: { reference: string }) => {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.3 }}
-            className="bg-bg-card border border-border-custom rounded-2xl p-8 group"
+            className="bg-bg-card border border-border-custom rounded-2xl p-8 group relative overflow-hidden shadow-xl"
           >
-            <div className="w-12 h-12 bg-primary-orange/10 rounded-xl flex items-center justify-center mb-6">
-              <Calendar className="w-6 h-6 text-primary-orange" />
+            <div className="absolute -right-4 -bottom-4 opacity-[0.03] group-hover:opacity-[0.08] transition-opacity pointer-events-none">
+              <Calendar className="w-32 h-32 text-white" />
             </div>
-            <h3 className="text-xl text-text-white mb-2">Save the Date</h3>
-            <p className="text-text-muted text-sm mb-6">
-              August 20–21, 2026. 9:00 AM Daily. Don't miss a single session.
-            </p>
-            <button className="text-primary-orange font-mono text-xs font-bold flex items-center gap-2 hover:underline">
-              <Download className="w-4 h-4" /> ADD TO CALENDAR
-            </button>
+            <div className="relative z-10">
+              <div className="w-12 h-12 bg-primary-orange/10 rounded-xl flex items-center justify-center mb-6 group-hover:bg-primary-orange/20 transition-colors">
+                <Calendar className="w-6 h-6 text-primary-orange" />
+              </div>
+              <h3 className="text-xl text-text-white mb-2">Save the Date</h3>
+              <p className="text-text-muted text-sm mb-6">
+                August 20–21, 2026. 9:00 AM Daily. Don't miss a single session.
+              </p>
+              <button className="text-primary-orange font-mono text-xs font-bold flex items-center gap-2 hover:underline">
+                <Download className="w-4 h-4" /> ADD TO CALENDAR
+              </button>
+            </div>
           </motion.div>
 
           {/* Socials - Wide */}
@@ -1170,15 +1176,18 @@ const ThankYouPage = ({ reference }: { reference: string }) => {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.4 }}
-            className="md:col-span-2 bg-bg-card border border-border-custom rounded-2xl p-8 flex flex-col md:flex-row items-center justify-between gap-8"
+            className="md:col-span-2 bg-bg-card border border-border-custom rounded-2xl p-8 flex flex-col md:flex-row items-center justify-between gap-8 relative overflow-hidden shadow-xl group"
           >
-            <div>
+            <div className="absolute -right-4 -bottom-4 opacity-[0.03] group-hover:opacity-[0.08] transition-opacity pointer-events-none">
+              <Share2 className="w-48 h-48 text-white" />
+            </div>
+            <div className="relative z-10">
               <h3 className="text-xl text-text-white mb-2">Follow the Journey</h3>
               <p className="text-text-muted text-sm">
                 Get daily tips and updates on our social media channels.
               </p>
             </div>
-            <div className="flex gap-4">
+            <div className="relative z-10 flex gap-4">
               {[Instagram, Twitter, Linkedin, Youtube].map((Icon, i) => (
                 <a 
                   key={i} 
