@@ -58,6 +58,23 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
   const [formData, setFormData] = useState({ fullName: '', email: '', phone: '' });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [runtimePublicKey, setRuntimePublicKey] = useState<string | null>(null);
+
+  // Fetch public key at runtime if missing from build (prevents redeploy requirement)
+  useEffect(() => {
+    if (!import.meta.env.VITE_FLUTTERWAVE_PUBLIC_KEY) {
+      fetch('/api/public-config')
+        .then(res => res.json())
+        .then(data => {
+          if (data.flutterwavePublicKey) {
+            setRuntimePublicKey(data.flutterwavePublicKey);
+          }
+        })
+        .catch(err => console.error('Failed to fetch public config:', err));
+    }
+  }, []);
+
+  const effectivePublicKey = import.meta.env.VITE_FLUTTERWAVE_PUBLIC_KEY || runtimePublicKey;
   const [cancelMsg, setCancelMsg] = useState(false);
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
 
@@ -66,7 +83,7 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
   const isEarlyBird = new Date() < EARLY_BIRD_END;
 
   const flutterwaveConfig = React.useMemo(() => ({
-    public_key: import.meta.env.VITE_FLUTTERWAVE_PUBLIC_KEY || '',
+    public_key: effectivePublicKey || '',
     tx_ref: 'TAHCC_FW_' + Date.now(),
     amount: price,
     currency: 'NGN',
@@ -81,7 +98,7 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
       description: 'Registration for Conference 2026',
       logo: 'https://picsum.photos/seed/edu/200/200',
     },
-  }), [price, formData, import.meta.env.VITE_FLUTTERWAVE_PUBLIC_KEY]);
+  }), [price, formData, effectivePublicKey]);
 
   const handleFlutterwavePayment = useFlutterwave(flutterwaveConfig);
 
@@ -116,7 +133,7 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
     if (!formData.email || !formData.email.includes('@')) return setError('Please enter a valid email address.');
     if (!formData.phone || formData.phone.length < 8) return setError('Please enter a valid phone number.');
 
-    if (!import.meta.env.VITE_FLUTTERWAVE_PUBLIC_KEY) {
+    if (!effectivePublicKey) {
       console.error('Flutterwave Public Key is missing. Please ensure VITE_FLUTTERWAVE_PUBLIC_KEY is set in your environment variables.');
       return setError('Payment system is currently being configured (Missing API Key). Please ensure your Flutterwave Public Key is added to the app settings.');
     }

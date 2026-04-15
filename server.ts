@@ -15,8 +15,22 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
+  console.log('--- Environment Diagnostic ---');
+  console.log('VITE_FLUTTERWAVE_PUBLIC_KEY:', process.env.VITE_FLUTTERWAVE_PUBLIC_KEY ? 'Present' : 'Missing');
+  console.log('FLUTTERWAVE_PUBLIC_KEY:', process.env.FLUTTERWAVE_PUBLIC_KEY ? 'Present' : 'Missing');
+  console.log('FLUTTERWAVE_SECRET_KEY:', process.env.FLUTTERWAVE_SECRET_KEY ? 'Present' : 'Missing');
+  console.log('WP_URL:', process.env.WP_URL ? 'Present' : 'Missing');
+  console.log('------------------------------');
+
   app.use(cors());
   app.use(express.json());
+
+  // Public Config for Frontend Fallback
+  app.get("/api/public-config", (req, res) => {
+    res.json({
+      flutterwavePublicKey: process.env.VITE_FLUTTERWAVE_PUBLIC_KEY || process.env.FLUTTERWAVE_PUBLIC_KEY || null
+    });
+  });
 
   // --- API Routes ---
 
