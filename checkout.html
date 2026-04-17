@@ -440,7 +440,10 @@
 
         <div class="order-summary-container">
             <div class="card">
-                <div class="section-label">⚡ ORDER SUMMARY</div>
+                <div class="section-label">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path></svg>
+                    ORDER SUMMARY
+                </div>
                 <h3 class="summary-title">Your Registration</h3>
                 
                 <div class="line-item main">
@@ -473,11 +476,17 @@
 
             <div class="trust-badges">
                 <div class="badge">
-                    <div class="badge-title">🛡️ Secure Payment</div>
+                    <div class="badge-title">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                        Secure Payment
+                    </div>
                     <div class="badge-sub">SSL encrypted checkout</div>
                 </div>
                 <div class="badge">
-                    <div class="badge-title">🔒 Safe Checkout</div>
+                    <div class="badge-title">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                        Safe Checkout
+                    </div>
                     <div class="badge-sub">Powered by Paystack & Flutterwave</div>
                 </div>
             </div>
@@ -507,10 +516,12 @@
                     <label class="form-label">SELECT PAYMENT METHOD</label>
                     <div class="gateway-options">
                         <button type="button" class="gateway-btn active" data-gateway="paystack">
-                            💳 PAYSTACK
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
+                            PAYSTACK
                         </button>
                         <button type="button" class="gateway-btn" data-gateway="flutterwave">
-                            ⚡ FLUTTERWAVE
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path></svg>
+                            FLUTTERWAVE
                         </button>
                     </div>
                 </div>
@@ -702,8 +713,8 @@
                     logo: 'SGE_Logo.png'
                 },
                 callback: function(response) {
-                    if (response.status === 'successful') {
-                        handlePaymentSuccess(response.transaction_id, 'flutterwave');
+                    if (response.status === 'successful' || response.status === 'success') {
+                        handlePaymentSuccess(response.transaction_id || response.tx_ref, 'flutterwave');
                     }
                 },
                 onclose: function() {

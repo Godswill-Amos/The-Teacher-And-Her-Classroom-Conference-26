@@ -148,13 +148,17 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
     handleFlutterwavePayment({
       ...flutterwaveConfig,
       callback: (response: any) => {
-        if (response.status === 'successful') {
-          handlePaymentSuccess(response.transaction_id, 'flutterwave');
+        if (response.status === 'successful' || response.status === 'success') {
+          handlePaymentSuccess(response.transaction_id || response.tx_ref, 'flutterwave');
+        } else {
+          setIsLoading(false);
+          closePaymentModal();
         }
-        closePaymentModal();
       },
       onClose: () => {
-        handlePaymentCancelled();
+        if (!isLoading) {
+          handlePaymentCancelled();
+        }
       }
     });
   };
@@ -171,8 +175,8 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
 
       if (data.status === 'success') {
         await captureAbandonedLead('paid', reference);
-        window.dispatchEvent(new CustomEvent('payment-success', { detail: { reference } }));
-        onClose();
+        // Redirect to the thank you page instead of just closing the modal
+        window.location.href = `thankyou.html?ref=${reference}&gateway=${gateway}`;
       } else {
         setError('Payment verification failed. Please contact support.');
       }
