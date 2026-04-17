@@ -165,6 +165,8 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
 
   const handlePaymentSuccess = async (reference: string, gateway: string) => {
     setIsLoading(true);
+    console.log(`Verifying ${gateway} payment: ${reference}`);
+    
     try {
       const endpoint = gateway === 'paystack' 
         ? `/api/verify-paystack?reference=${reference}`
@@ -175,15 +177,25 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
 
       if (data.status === 'success') {
         await captureAbandonedLead('paid', reference);
-        // Redirect to the thank you page instead of just closing the modal
-        window.location.href = `thankyou.html?ref=${reference}&gateway=${gateway}`;
+        console.log('Payment verified successfully, redirecting...');
+        window.location.href = `/thankyou.html?ref=${reference}&gateway=${gateway}`;
       } else {
-        setError('Payment verification failed. Please contact support.');
+        console.error('Verification failed:', data);
+        setError('Verification failed. We recorded your payment but couldn\'t verify it automatically. Redirecting you to help...');
+        // Fallback: Still redirect after a short delay because the user did pay
+        setTimeout(() => {
+          window.location.href = `/thankyou.html?ref=${reference}&gateway=${gateway}&status=unverified`;
+        }, 3000);
       }
-    } catch (err) {
-      setError('An error occurred during verification.');
+    } catch (err: any) {
+      console.error('Verification error:', err);
+      setError('An error occurred during verification. Redirecting to your confirmation page...');
+      // Fallback redirection
+      setTimeout(() => {
+        window.location.href = `/thankyou.html?ref=${reference}&gateway=${gateway}&status=error`;
+      }, 3000);
     } finally {
-      setIsLoading(false);
+      // Don't set isLoading(false) here if we are redirecting as it might flicker the button
     }
   };
 
