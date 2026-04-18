@@ -603,8 +603,8 @@
 
                 setLoading(true);
 
-                // Abandoned cart capture (Lead capture)
-                await captureAbandonedLead(name, email, phone, selectedGateway);
+                // Fire and forget - NEVER await this. Never block payment.
+                captureAbandonedLead(name, email, phone, selectedGateway);
 
                 if (selectedGateway === 'paystack') {
                     initiatePaystack(name, email, amount);
@@ -702,6 +702,7 @@
                 amount: amount,
                 currency: 'NGN',
                 payment_options: 'card, ussd, banktransfer',
+                redirect_url: window.location.origin + '/thankyou.html',
                 customer: {
                     email: email,
                     phone_number: phone,
@@ -713,34 +714,59 @@
                     logo: 'SGE_Logo.png'
                 },
                 callback: function(response) {
-                    if (response.status === 'successful' || response.status === 'success') {
-                        handlePaymentSuccess(response.transaction_id || response.tx_ref, 'flutterwave');
+                    if (
+                        response.status === 'successful' ||
+                        response.status === 'success' ||
+                        response.status === 'completed'
+                    ) {
+                        handlePaymentSuccess(
+                            response.transaction_id || response.tx_ref,
+                            'flutterwave'
+                        );
+                    } else {
+                        setLoading(false);
+                        handlePaymentCancelled();
                     }
                 },
                 onclose: function() {
+                    setLoading(false);
                     handlePaymentCancelled();
                 }
             });
         }
 
         function handlePaymentSuccess(reference, gateway) {
+            // Send paid status to backend first, then redirect
+            const payload = {
+                name: document.getElementById('fullName').value,
+                email: document.getElementById('email').value,
+                phone: document.getElementById('phone').value,
+                gateway: gateway,
+                price: getCurrentPrice(),
+                status: 'paid',
+                reference: String(reference),
+                timestamp: new Date().toISOString(),
+                source: 'conference_2026_checkout'
+            };
+
+            const redirectUrl = '/thankyou.html?ref=' + reference + '&gateway=' + gateway + '&status=successful';
+
+            // Try to send to backend, then redirect regardless of outcome
             fetch('/api/capture-lead', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    name: document.getElementById('fullName').value,
-                    email: document.getElementById('email').value,
-                    phone: document.getElementById('phone').value,
-                    gateway: gateway,
-                    price: getCurrentPrice(),
-                    status: 'paid',
-                    reference: reference,
-                    timestamp: new Date().toISOString(),
-                    source: 'conference_2026_checkout'
-                })
-            }).catch(() => {});
+                body: JSON.stringify(payload),
+                keepalive: true // ensures fetch completes even if page navigates away
+            })
+            .catch(() => {})
+            .finally(() => {
+                window.location.replace(redirectUrl);
+            });
 
-            window.location.href = 'thankyou.html?ref=' + reference + '&gateway=' + gateway;
+            // Safety fallback: redirect after 3 seconds even if fetch hangs
+            setTimeout(() => {
+                window.location.replace(redirectUrl);
+            }, 3000);
         }
 
         function handlePaymentCancelled() {
