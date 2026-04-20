@@ -59,6 +59,9 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [runtimePublicKey, setRuntimePublicKey] = useState<string | null>(null);
+  
+  // Use a ref to track payment success to avoid stale closure issues
+  const paymentSuccessRef = React.useRef(false);
 
   // Fetch public key at runtime if missing from build (prevents redeploy requirement)
   useEffect(() => {
@@ -142,43 +145,66 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
     setError(null);
     setCancelMsg(false);
 
+    // Reset the success ref before each payment attempt
+    paymentSuccessRef.current = false;
+
     // Capture lead without awaiting to avoid blocking the payment popup
     captureAbandonedLead('checkout_started');
 
     handleFlutterwavePayment({
       ...flutterwaveConfig,
       callback: (response: any) => {
-        if (response.status === 'successful' || response.status === 'success') {
-          handlePaymentSuccess(response.transaction_id || response.tx_ref, 'flutterwave');
+        if (
+          response.status === 'successful' ||
+          response.status === 'success' ||
+          response.status === 'completed'
+        ) {
+          // Mark as successful BEFORE the modal closes
+          paymentSuccessRef.current = true;
+          handlePaymentSuccess(
+            String(response.transaction_id || response.tx_ref),
+            'flutterwave'
+          );
         } else {
           setIsLoading(false);
           closePaymentModal();
         }
       },
       onClose: () => {
-        setIsLoading((current: boolean) => {
-          if (!current) {
-            setCancelMsg(true);
-            setTimeout(() => setCancelMsg(false), 5000);
-          }
-          return current;
-        });
+        // Use the ref - not state - to check if payment succeeded
+        // State has a stale closure issue here, ref does not
+        if (!paymentSuccessRef.current) {
+          handlePaymentCancelled();
+        }
+        // If payment succeeded, do nothing - redirect is already happening
       }
     });
   };
 
   const handlePaymentSuccess = async (reference: string, gateway: string) => {
     setIsLoading(true);
+
     const redirectUrl = `/thankyou.html?ref=${reference}&gateway=${gateway}`;
+
+    // Start a guaranteed redirect timer immediately
+    // This fires no matter what happens with verification
     const safetyRedirect = setTimeout(() => {
       window.location.href = redirectUrl;
     }, 4000);
+
     try {
-      await fetch(`/api/verify-flutterwave?transaction_id=${reference}`);
-      await captureAbandonedLead('paid', reference);
+      const res = await fetch(`/api/verify-flutterwave?transaction_id=${reference}`);
+      const data = await res.json();
+
+      // Capture paid status regardless of verification result
+      captureAbandonedLead('paid', reference);
+
+      // Clear safety timer and redirect now
       clearTimeout(safetyRedirect);
       window.location.href = redirectUrl;
-    } catch (err) {
+
+    } catch (err: any) {
+      // Verification failed but user still paid - redirect anyway
       clearTimeout(safetyRedirect);
       window.location.href = redirectUrl;
     }
