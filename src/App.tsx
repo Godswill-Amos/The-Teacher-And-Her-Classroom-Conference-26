@@ -59,9 +59,6 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [runtimePublicKey, setRuntimePublicKey] = useState<string | null>(null);
-  
-  // Use a ref to track payment success to avoid stale closure issues
-  const paymentSuccessRef = React.useRef(false);
 
   // Fetch public key at runtime if missing from build (prevents redeploy requirement)
   useEffect(() => {
@@ -145,66 +142,43 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
     setError(null);
     setCancelMsg(false);
 
-    // Reset the success ref before each payment attempt
-    paymentSuccessRef.current = false;
-
     // Capture lead without awaiting to avoid blocking the payment popup
     captureAbandonedLead('checkout_started');
 
     handleFlutterwavePayment({
       ...flutterwaveConfig,
       callback: (response: any) => {
-        if (
-          response.status === 'successful' ||
-          response.status === 'success' ||
-          response.status === 'completed'
-        ) {
-          // Mark as successful BEFORE the modal closes
-          paymentSuccessRef.current = true;
-          handlePaymentSuccess(
-            String(response.transaction_id || response.tx_ref),
-            'flutterwave'
-          );
+        if (response.status === 'successful' || response.status === 'success') {
+          handlePaymentSuccess(response.transaction_id || response.tx_ref, 'flutterwave');
         } else {
           setIsLoading(false);
           closePaymentModal();
         }
       },
       onClose: () => {
-        // Use the ref - not state - to check if payment succeeded
-        // State has a stale closure issue here, ref does not
-        if (!paymentSuccessRef.current) {
-          handlePaymentCancelled();
-        }
-        // If payment succeeded, do nothing - redirect is already happening
+        setIsLoading((current: boolean) => {
+          if (!current) {
+            setCancelMsg(true);
+            setTimeout(() => setCancelMsg(false), 5000);
+          }
+          return current;
+        });
       }
     });
   };
 
   const handlePaymentSuccess = async (reference: string, gateway: string) => {
     setIsLoading(true);
-
     const redirectUrl = `/thankyou.html?ref=${reference}&gateway=${gateway}`;
-
-    // Start a guaranteed redirect timer immediately
-    // This fires no matter what happens with verification
     const safetyRedirect = setTimeout(() => {
       window.location.href = redirectUrl;
     }, 4000);
-
     try {
-      const res = await fetch(`/api/verify-flutterwave?transaction_id=${reference}`);
-      const data = await res.json();
-
-      // Capture paid status regardless of verification result
-      captureAbandonedLead('paid', reference);
-
-      // Clear safety timer and redirect now
+      await fetch(`/api/verify-flutterwave?transaction_id=${reference}`);
+      await captureAbandonedLead('paid', reference);
       clearTimeout(safetyRedirect);
       window.location.href = redirectUrl;
-
-    } catch (err: any) {
-      // Verification failed but user still paid - redirect anyway
+    } catch (err) {
       clearTimeout(safetyRedirect);
       window.location.href = redirectUrl;
     }
@@ -419,113 +393,24 @@ const AnnouncementBar = () => {
 const Hero = ({ onScrollToPricing }: { onScrollToPricing: () => void }) => {
   const price = getCurrentPrice();
   const formatted = formatPrice(price);
-  const isEarlyBird = new Date() < EARLY_BIRD_END;
+  const videoUrl = "https://www.theteacherandherclassroom.ng/wp-content/uploads/2026/04/215475_tiny.mp4";
 
   return (
-    <section className="relative bg-[#0f0d0b] pt-12 md:pt-16 pb-16 px-5 text-center overflow-hidden">
-      {/* Enhanced Background Layers */}
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(249,115,22,0.15)_0%,transparent_50%)]" />
-      
-      {/* Dynamic Mesh Gradients */}
-      <motion.div 
-        animate={{ 
-          scale: [1, 1.2, 1],
-          x: [0, 100, 0],
-          y: [0, 50, 0],
-        }}
-        transition={{ duration: 15, repeat: Infinity, ease: "easeInOut" }}
-        className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] bg-primary-orange/10 blur-[120px] rounded-full pointer-events-none" 
-      />
-      <motion.div 
-        animate={{ 
-          scale: [1.2, 1, 1.2],
-          x: [0, -100, 0],
-          y: [0, -50, 0],
-        }}
-        transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }}
-        className="absolute bottom-[-20%] right-[-10%] w-[60%] h-[60%] bg-primary-orange/5 blur-[120px] rounded-full pointer-events-none" 
-      />
-
-      {/* Floating Particles/Shapes (Even More Lights) */}
-      <div className="absolute inset-0 pointer-events-none">
-        {[...Array(45)].map((_, i) => (
-          <motion.div
-            key={i}
-            initial={{ opacity: 0 }}
-            animate={{ 
-              opacity: [0.1, 0.5, 0.1],
-              y: [0, -120, 0],
-              x: [0, (i % 4 - 1.5) * 40, 0],
-              scale: [1, 1.5, 1]
-            }}
-            transition={{ 
-              duration: 6 + (i % 7), 
-              repeat: Infinity, 
-              delay: i * 0.2 
-            }}
-            className="absolute w-1 h-1 bg-primary-orange rounded-full shadow-[0_0_8px_rgba(249,115,22,0.8)]"
-            style={{ 
-              top: `${Math.random() * 100}%`, 
-              left: `${Math.random() * 100}%` 
-            }}
-          />
-        ))}
-      </div>
-
-      {/* Light Beams & Lens Flares */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        <motion.div 
-          animate={{ 
-            opacity: [0, 0.15, 0],
-            x: ['-20%', '120%'],
-          }}
-          transition={{ duration: 12, repeat: Infinity, ease: "linear" }}
-          className="absolute top-1/4 left-0 w-[40%] h-[1px] bg-gradient-to-r from-transparent via-primary-orange/40 to-transparent blur-md -rotate-45"
-        />
-        <motion.div 
-          animate={{ 
-            opacity: [0, 0.1, 0],
-            x: ['120%', '-20%'],
-          }}
-          transition={{ duration: 15, repeat: Infinity, ease: "linear", delay: 3 }}
-          className="absolute bottom-1/4 right-0 w-[40%] h-[1px] bg-gradient-to-r from-transparent via-primary-orange/30 to-transparent blur-md rotate-45"
-        />
-      </div>
-
-      {/* Refined Motion Graphics (Geometric & Techy) */}
-      <div className="absolute inset-0 pointer-events-none opacity-30">
-        <motion.div 
-          animate={{ rotate: 360 }}
-          transition={{ duration: 50, repeat: Infinity, ease: "linear" }}
-          className="absolute top-[5%] right-[10%] w-80 h-80 border border-primary-orange/10 rounded-full flex items-center justify-center"
+    <section className="relative bg-[#0f0d0b] pt-12 md:pt-16 pb-16 px-5 text-center overflow-hidden min-h-[85vh] flex items-center justify-center">
+      {/* Background Video Layer */}
+      <div className="absolute inset-0 z-0">
+        <video
+          autoPlay
+          loop
+          muted
+          playsInline
+          className="w-full h-full object-cover opacity-30 grayscale contrast-125"
+          poster="https://picsum.photos/seed/hero-fallback/1920/1080?blur=10"
         >
-          <div className="w-[95%] h-[95%] border border-dashed border-primary-orange/5 rounded-full" />
-        </motion.div>
-        
-        <motion.div 
-          animate={{ rotate: -360 }}
-          transition={{ duration: 70, repeat: Infinity, ease: "linear" }}
-          className="absolute bottom-[15%] left-[5%] w-[500px] h-[500px] border border-primary-orange/5 rounded-full"
-        />
-
-        {/* Floating Tech Elements */}
-        {[...Array(4)].map((_, i) => (
-          <motion.div
-            key={i}
-            animate={{ 
-              y: [0, -30, 0],
-              opacity: [0.2, 0.4, 0.2]
-            }}
-            transition={{ duration: 8 + i, repeat: Infinity, ease: "easeInOut", delay: i }}
-            className="absolute font-mono text-[8px] text-primary-orange/40 tracking-tighter"
-            style={{ 
-              top: `${25 + i * 20}%`, 
-              left: i % 2 === 0 ? '15%' : '85%' 
-            }}
-          >
-            {`0${i+1} // CLSRM_EVOLVE`}
-          </motion.div>
-        ))}
+          <source src={videoUrl} type="video/mp4" />
+        </video>
+        {/* Overlay to ensure text readability */}
+        <div className="absolute inset-0 bg-gradient-to-b from-[#0f0d0b]/80 via-transparent to-[#0f0d0b]" />
       </div>
 
       <div className="relative z-10 max-w-[1000px] mx-auto">
