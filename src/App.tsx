@@ -410,7 +410,7 @@ const Hero = ({ onScrollToPricing }: { onScrollToPricing: () => void }) => {
           <source src={videoUrl} type="video/mp4" />
         </video>
         {/* Overlay to ensure text readability */}
-        <div className="absolute inset-0 bg-gradient-to-b from-[#0f0d0b]/80 via-transparent to-[#0f0d0b]" />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#0f0d0b]/90 via-[#0f0d0b]/50 to-[#0f0d0b]" />
       </div>
 
       <div className="relative z-10 max-w-[1000px] mx-auto">
