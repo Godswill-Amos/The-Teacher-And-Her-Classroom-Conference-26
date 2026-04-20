@@ -551,47 +551,14 @@
 
         document.addEventListener('DOMContentLoaded', () => {
             const urlParams = new URLSearchParams(window.location.search);
-
-            // Handle both our custom params AND Flutterwave's own redirect params
-            // Flutterwave appends: status, tx_ref, transaction_id
-            // Our redirect appends: ref, gateway, status
-            const status = urlParams.get('status');
-            const ref = urlParams.get('ref') || urlParams.get('transaction_id') || urlParams.get('tx_ref') || '---';
-            const gateway = urlParams.get('gateway') || 'flutterwave';
-
-            // If payment was not successful, send back to checkout
-            if (status && status !== 'successful' && status !== 'success' && status !== 'completed') {
-                window.location.replace('/checkout.html?error=payment_failed');
-                return;
-            }
-
-            // Show the reference
-            document.getElementById('paymentRef').textContent = 'Registration Confirmation: ' + ref;
-
-            // If coming from Flutterwave redirect_url, capture the paid status
-            // because the callback may not have fired
-            if (urlParams.get('transaction_id') || urlParams.get('tx_ref')) {
-                fetch('/api/capture-lead', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        name: '',
-                        email: urlParams.get('email') || '',
-                        phone: '',
-                        gateway: 'flutterwave',
-                        price: 0,
-                        status: 'paid',
-                        reference: ref,
-                        timestamp: new Date().toISOString(),
-                        source: 'conference_2026_flutterwave_redirect'
-                    }),
-                    keepalive: true
-                }).catch(() => {});
-            }
+            const ref = urlParams.get('ref') || '---';
+            const gateway = urlParams.get('gateway') || '---';
+            
+            document.getElementById('paymentRef').textContent = `Registration Confirmation: ${ref}`;
 
             // Share links
             const shareText = `I just registered for The Teacher And Her Classroom Conference 2026. It is a live virtual workshop for Nigerian teachers on August 20th and 21st. Sign up here: ${REGISTRATION_PAGE_URL}`;
-
+            
             document.getElementById('whatsappShare').href = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
             document.getElementById('twitterShare').href = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`;
         });

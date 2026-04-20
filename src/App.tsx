@@ -156,46 +156,31 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
         }
       },
       onClose: () => {
-        if (!isLoading) {
-          handlePaymentCancelled();
-        }
+        setIsLoading((current: boolean) => {
+          if (!current) {
+            setCancelMsg(true);
+            setTimeout(() => setCancelMsg(false), 5000);
+          }
+          return current;
+        });
       }
     });
   };
 
   const handlePaymentSuccess = async (reference: string, gateway: string) => {
     setIsLoading(true);
-    console.log(`Verifying ${gateway} payment: ${reference}`);
-    
+    const redirectUrl = `/thankyou.html?ref=${reference}&gateway=${gateway}`;
+    const safetyRedirect = setTimeout(() => {
+      window.location.href = redirectUrl;
+    }, 4000);
     try {
-      const endpoint = gateway === 'paystack' 
-        ? `/api/verify-paystack?reference=${reference}`
-        : `/api/verify-flutterwave?transaction_id=${reference}`;
-      
-      const res = await fetch(endpoint);
-      const data = await res.json();
-
-      if (data.status === 'success') {
-        await captureAbandonedLead('paid', reference);
-        console.log('Payment verified successfully, redirecting...');
-        window.location.href = `/thankyou.html?ref=${reference}&gateway=${gateway}`;
-      } else {
-        console.error('Verification failed:', data);
-        setError('Verification failed. We recorded your payment but couldn\'t verify it automatically. Redirecting you to help...');
-        // Fallback: Still redirect after a short delay because the user did pay
-        setTimeout(() => {
-          window.location.href = `/thankyou.html?ref=${reference}&gateway=${gateway}&status=unverified`;
-        }, 3000);
-      }
-    } catch (err: any) {
-      console.error('Verification error:', err);
-      setError('An error occurred during verification. Redirecting to your confirmation page...');
-      // Fallback redirection
-      setTimeout(() => {
-        window.location.href = `/thankyou.html?ref=${reference}&gateway=${gateway}&status=error`;
-      }, 3000);
-    } finally {
-      // Don't set isLoading(false) here if we are redirecting as it might flicker the button
+      await fetch(`/api/verify-flutterwave?transaction_id=${reference}`);
+      await captureAbandonedLead('paid', reference);
+      clearTimeout(safetyRedirect);
+      window.location.href = redirectUrl;
+    } catch (err) {
+      clearTimeout(safetyRedirect);
+      window.location.href = redirectUrl;
     }
   };
 

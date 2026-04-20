@@ -603,8 +603,8 @@
 
                 setLoading(true);
 
-                // Fire and forget - NEVER await this. Never block payment.
-                captureAbandonedLead(name, email, phone, selectedGateway);
+                // Abandoned cart capture (Lead capture)
+                await captureAbandonedLead(name, email, phone, selectedGateway);
 
                 if (selectedGateway === 'paystack') {
                     initiatePaystack(name, email, amount);
@@ -696,18 +696,12 @@
         }
 
         function initiateFlutterwave(name, email, phone, amount) {
-            // Flag to track if payment completed successfully
-            // This prevents onclose from triggering the cancelled message
-            // after a successful payment
-            let paymentCompleted = false;
-
             FlutterwaveCheckout({
                 public_key: 'FLWPUBK_TEST-80158c07d0d7299afeb9d5d76b4600f5-X',
                 tx_ref: 'TAHCC_FW_' + Date.now(),
                 amount: amount,
                 currency: 'NGN',
                 payment_options: 'card, ussd, banktransfer',
-                redirect_url: window.location.origin + '/thankyou.html',
                 customer: {
                     email: email,
                     phone_number: phone,
@@ -719,81 +713,34 @@
                     logo: 'SGE_Logo.png'
                 },
                 callback: function(response) {
-                    // Mark payment as completed so onclose does not
-                    // trigger the cancelled message
-                    paymentCompleted = true;
-
-                    if (
-                        response.status === 'successful' ||
-                        response.status === 'success' ||
-                        response.status === 'completed'
-                    ) {
-                        // Fire backend capture with keepalive
-                        // redirect_url will handle the actual page redirect
-                        fetch('/api/capture-lead', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                name: document.getElementById('fullName').value,
-                                email: document.getElementById('email').value,
-                                phone: document.getElementById('phone').value,
-                                gateway: 'flutterwave',
-                                price: getCurrentPrice(),
-                                status: 'paid',
-                                reference: String(response.transaction_id || response.tx_ref),
-                                timestamp: new Date().toISOString(),
-                                source: 'conference_2026_checkout'
-                            }),
-                            keepalive: true
-                        }).catch(() => {});
-                        // Do NOT call window.location here
-                        // Let redirect_url handle it to avoid double redirect
+                    if (response.status === 'successful' || response.status === 'success') {
+                        handlePaymentSuccess(response.transaction_id || response.tx_ref, 'flutterwave');
                     }
                 },
                 onclose: function() {
-                    // Only show cancelled message if payment was NOT completed
-                    if (!paymentCompleted) {
-                        setLoading(false);
-                        handlePaymentCancelled();
-                    }
-                    // If paymentCompleted is true, do nothing
-                    // redirect_url is already taking the user to thankyou.html
+                    handlePaymentCancelled();
                 }
             });
         }
 
         function handlePaymentSuccess(reference, gateway) {
-            // Send paid status to backend first, then redirect
-            const payload = {
-                name: document.getElementById('fullName').value,
-                email: document.getElementById('email').value,
-                phone: document.getElementById('phone').value,
-                gateway: gateway,
-                price: getCurrentPrice(),
-                status: 'paid',
-                reference: String(reference),
-                timestamp: new Date().toISOString(),
-                source: 'conference_2026_checkout'
-            };
-
-            const redirectUrl = '/thankyou.html?ref=' + reference + '&gateway=' + gateway + '&status=successful';
-
-            // Try to send to backend, then redirect regardless of outcome
             fetch('/api/capture-lead', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-                keepalive: true // ensures fetch completes even if page navigates away
-            })
-            .catch(() => {})
-            .finally(() => {
-                window.location.replace(redirectUrl);
-            });
+                body: JSON.stringify({
+                    name: document.getElementById('fullName').value,
+                    email: document.getElementById('email').value,
+                    phone: document.getElementById('phone').value,
+                    gateway: gateway,
+                    price: getCurrentPrice(),
+                    status: 'paid',
+                    reference: reference,
+                    timestamp: new Date().toISOString(),
+                    source: 'conference_2026_checkout'
+                })
+            }).catch(() => {});
 
-            // Safety fallback: redirect after 3 seconds even if fetch hangs
-            setTimeout(() => {
-                window.location.replace(redirectUrl);
-            }, 3000);
+            window.location.href = 'thankyou.html?ref=' + reference + '&gateway=' + gateway;
         }
 
         function handlePaymentCancelled() {
