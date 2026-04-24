@@ -90,7 +90,7 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
     tx_ref: 'TAHCC_FW_' + Date.now(),
     amount: price,
     currency: 'NGN',
-    payment_options: 'card,mobilemoney,ussd',
+    payment_options: 'card,mobilemoney,ussd,account,banktransfer',
     customer: {
       email: formData.email,
       phone_number: formData.phone,
@@ -151,11 +151,16 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
     // Capture lead without awaiting to avoid blocking the payment popup
     captureAbandonedLead('checkout_started');
 
+    console.log('[Checkout] Initializing Flutterwave with payload:', JSON.stringify({
+      ...flutterwaveConfig,
+      tx_ref: flutterwaveConfig.tx_ref,
+      customer: flutterwaveConfig.customer
+    }, null, 2));
+
     handleFlutterwavePayment({
       ...flutterwaveConfig,
-      // FIX 2: Add redirect_url as reliable fallback
-      redirect_url: window.location.origin + '/thankyou.html',
       callback: (response: any) => {
+        console.log('[Checkout] Flutterwave Callback Response:', JSON.stringify(response, null, 2));
         if (
           response.status === 'successful' ||
           response.status === 'success' ||
