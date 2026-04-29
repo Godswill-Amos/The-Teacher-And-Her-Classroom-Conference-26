@@ -35,6 +35,10 @@ async function startServer() {
   // --- API Routes ---
 
   const processedTransactions = new Set<string>();
+  
+  // Lead Storage for Webhook recovery (Local Memory Map)
+  // In production, this should be a DB like Redis or Firestore
+  const leadStorage = new Map<string, any>();
 
   // Lead Capture
   app.post("/api/capture-lead", async (req, res) => {
@@ -42,8 +46,23 @@ async function startServer() {
       name,
       email,
       phone,
-      status
+      status,
+      tx_ref
     } = req.body;
+
+    console.log(`[Capture Lead] Received data for tx_ref: ${tx_ref || 'MISSING'}`);
+
+    // Store mapped data by tx_ref if available
+    if (tx_ref) {
+      const leadData = {
+        customer_email: email,
+        customer_name: name,
+        customer_phone: phone,
+        captured_at: new Date().toISOString()
+      };
+      leadStorage.set(tx_ref, leadData);
+      console.log(`[Capture Lead] Stored lead data for tx_ref ${tx_ref}:`, JSON.stringify(leadData, null, 2));
+    }
 
     // Use Uncanny Automator webhook for Checkout Started
     const webhookUrl = process.env.UNCANNY_CHECKOUT_STARTED_WEBHOOK_URL;
@@ -111,7 +130,11 @@ async function startServer() {
         const webhookUrl = process.env.UNCANNY_AUTOMATOR_WEBHOOK_URL;
         
         if (webhookUrl && !processedTransactions.has(txRef) && !processedTransactions.has(transactionId)) {
-          // Construct flattened payload strictly as requested, preferring meta values
+          // Look up lead data from storage using tx_ref
+          const storedLead = leadStorage.get(txRef) || {};
+          console.log(`[Verify] Lead lookup for tx_ref ${txRef}:`, JSON.stringify(storedLead, null, 2));
+
+          // Construct flattened payload strictly as requested, preferring stored values as primary source
           const flatPayload = {
             event: "charge.completed",
             status: verifiedData.status,
@@ -119,13 +142,13 @@ async function startServer() {
             amount: String(verifiedData.amount),
             currency: verifiedData.currency,
             payment_type: verifiedData.payment_type,
-            customer_email: verifiedData.meta?.customer_email || verifiedData.customer?.email,
-            customer_name: verifiedData.meta?.customer_name || verifiedData.customer?.name,
-            customer_phone: verifiedData.meta?.customer_phone || verifiedData.customer?.phone_number
+            customer_email: storedLead.customer_email || verifiedData.customer?.email,
+            customer_name: storedLead.customer_name || verifiedData.customer?.name,
+            customer_phone: storedLead.customer_phone || verifiedData.customer?.phone_number
           };
 
           console.log(`[Verify] Transaction ${txRef} verified successfully.`);
-          console.log(`[Verify] Sending flattened payload to Uncanny:`, JSON.stringify(flatPayload, null, 2));
+          console.log(`[Verify] Final payload sent to Uncanny:`, JSON.stringify(flatPayload, null, 2));
           
           try {
             const webhookResponse = await axios.post(webhookUrl, flatPayload, {
@@ -153,6 +176,63 @@ async function startServer() {
       console.error("Flutterwave Verification Error:", error.response?.data || error.message);
       res.status(500).json({ error: "Verification failed" });
     }
+  });
+
+  // Flutterwave Webhook
+  app.post("/api/flutterwave-webhook", async (req, res) => {
+    const body = req.body;
+    
+    // Verify it is a real Flutterwave webhook (Hash Check)
+    const hash = req.headers['verif-hash'];
+    if (hash && process.env.FLUTTERWAVE_WEBHOOK_HASH && hash !== process.env.FLUTTERWAVE_WEBHOOK_HASH) {
+      console.warn(`[Webhook] Invalid hash received: ${hash}`);
+      return res.status(401).send("Invalid Hash");
+    }
+
+    console.log(`[Webhook] Incoming webhook for tx_ref: ${body.data?.tx_ref}`);
+
+    // Only process successful payments
+    if (body?.data?.status !== 'successful') {
+      return res.status(200).json({ received: true });
+    }
+
+    const txRef = body.data.tx_ref;
+    const transactionId = String(body.data.id);
+
+    if (txRef && !processedTransactions.has(txRef)) {
+      // Look up lead data
+      const storedLead = leadStorage.get(txRef) || {};
+      console.log(`[Webhook] Lead lookup result for tx_ref ${txRef}:`, JSON.stringify(storedLead, null, 2));
+
+      // Build payload with priority logic
+      const flatPayload = {
+        event: body.event || "charge.completed",
+        status: body.data.status,
+        tx_ref: txRef,
+        amount: String(body.data.amount),
+        currency: body.data.currency,
+        payment_type: body.data.payment_type,
+        customer_email: storedLead.customer_email || body.data.customer?.email,
+        customer_name: storedLead.customer_name || body.data.customer?.name,
+        customer_phone: storedLead.customer_phone || body.data.customer?.phone_number
+      };
+
+      console.log(`[Webhook] Final payload sent to Uncanny:`, JSON.stringify(flatPayload, null, 2));
+
+      // Forward to Uncanny
+      const webhookUrl = process.env.UNCANNY_AUTOMATOR_WEBHOOK_URL;
+      if (webhookUrl) {
+        try {
+          await axios.post(webhookUrl, flatPayload);
+          processedTransactions.add(txRef);
+          if (transactionId) processedTransactions.add(transactionId);
+        } catch (e: any) {
+          console.error('[Webhook] Forwarding to Uncanny failed:', e.message);
+        }
+      }
+    }
+
+    res.status(200).json({ received: true });
   });
 
   // --- Vite Middleware ---

@@ -114,7 +114,7 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
     setFormData({ ...formData, [e.target.id]: e.target.value });
   };
 
-  const captureAbandonedLead = async (status: string, reference?: string) => {
+  const captureAbandonedLead = async (status: string, txRef?: string, transaction_id?: string) => {
     try {
       await fetch('/api/capture-lead', {
         method: 'POST',
@@ -125,7 +125,8 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
           gateway: 'flutterwave',
           price,
           status,
-          reference,
+          tx_ref: txRef,
+          reference: transaction_id || txRef,
           timestamp: new Date().toISOString(),
           source: 'conference_2026_modal_checkout'
         })
@@ -153,14 +154,13 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
     // FIX 2: Reset the ref before each new payment attempt
     paymentSuccessRef.current = false;
 
-    // Capture lead without awaiting to avoid blocking the payment popup
-    captureAbandonedLead('checkout_started');
+    // Use the tx_ref already prepared in the memoized config
+    const tx_ref = flutterwaveConfig.tx_ref;
 
-    console.log('[Checkout] Initializing Flutterwave with payload:', JSON.stringify({
-      ...flutterwaveConfig,
-      tx_ref: flutterwaveConfig.tx_ref,
-      customer: flutterwaveConfig.customer
-    }, null, 2));
+    // Capture lead with tx_ref to link with webhook later
+    captureAbandonedLead('checkout_started', tx_ref);
+
+    console.log(`[Checkout] Initializing Flutterwave with tx_ref: ${tx_ref}`);
 
     handleFlutterwavePayment({
       ...flutterwaveConfig,
@@ -175,7 +175,8 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
           paymentSuccessRef.current = true;
           handlePaymentSuccess(
             String(response.transaction_id || response.tx_ref),
-            'flutterwave'
+            'flutterwave',
+            tx_ref
           );
         } else {
           setIsLoading(false);
@@ -195,9 +196,9 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
   };
 
   // FIX 3: Bulletproof redirect that always fires
-  const handlePaymentSuccess = async (reference: string, gateway: string) => {
+  const handlePaymentSuccess = async (transaction_id: string, gateway: string, txRef?: string) => {
     setIsLoading(true);
-    const redirectUrl = `/thankyou.html?ref=${reference}&gateway=${gateway}`;
+    const redirectUrl = `/thankyou.html?ref=${transaction_id}&gateway=${gateway}`;
 
     // Safety net: redirect after 4 seconds no matter what
     const safetyRedirect = setTimeout(() => {
@@ -205,8 +206,8 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
     }, 4000);
 
     try {
-      await fetch(`/api/verify-flutterwave?transaction_id=${reference}`);
-      captureAbandonedLead('paid', reference);
+      await fetch(`/api/verify-flutterwave?transaction_id=${transaction_id}`);
+      captureAbandonedLead('paid', txRef, transaction_id);
       clearTimeout(safetyRedirect);
       window.location.href = redirectUrl;
     } catch (err) {
