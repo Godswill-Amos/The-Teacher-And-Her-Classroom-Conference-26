@@ -134,11 +134,36 @@ async function startServer() {
         }
       );
 
+      console.log(`[Verify] Flutterwave Response for ID ${transaction_id}:`, JSON.stringify(response.data, null, 2));
+
       if (response.data.status === "success" && response.data.data.status === "successful") {
-        // Here you would typically save the registration to your database
+        // SUCCESS: Trigger manual fallback webhook to Uncanny Automator
+        const webhookUrl = "https://www.theteacherandherclassroom.ng/wp-json/uap/v2/uap-17-18";
+        
+        console.log(`[Verify] Payment Successful. Triggering manual fallback webhook to Uncanny Automator...`);
+        
+        try {
+          const webhookResponse = await axios.post(webhookUrl, {
+            event: 'charge.completed',
+            status: 'successful',
+            tx_ref: response.data.data.tx_ref,
+            amount: String(response.data.data.amount),
+            currency: response.data.data.currency,
+            payment_type: response.data.data.payment_type,
+            customer_email: response.data.data.customer?.email,
+            customer_name: response.data.data.customer?.name,
+            customer_phone: response.data.data.customer?.phone_number,
+            verification_source: 'site_fallback'
+          });
+          console.log(`[Verify] Manual Webhook Trigger Response:`, webhookResponse.status, webhookResponse.data);
+        } catch (webhookErr: any) {
+          console.error(`[Verify] Manual Webhook Trigger Failed:`, webhookErr.response?.data || webhookErr.message);
+        }
+
         res.json({ status: "success", data: response.data.data });
       } else {
-        res.status(400).json({ status: "failed", message: "Transaction not successful" });
+        console.warn(`[Verify] Transaction check failed. Status: ${response.data?.data?.status || 'unknown'}`);
+        res.status(400).json({ status: "failed", message: `Transaction status: ${response.data?.data?.status || 'failed'}` });
       }
     } catch (error: any) {
       console.error("Flutterwave Verification Error:", error.response?.data || error.message);
