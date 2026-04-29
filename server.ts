@@ -34,6 +34,8 @@ async function startServer() {
 
   // --- API Routes ---
 
+  const processedTransactions = new Set<string>();
+
   // Lead Capture
   app.post("/api/capture-lead", async (req, res) => {
     const {
@@ -137,30 +139,49 @@ async function startServer() {
       console.log(`[Verify] Flutterwave Response for ID ${transaction_id}:`, JSON.stringify(response.data, null, 2));
 
       if (response.data.status === "success" && response.data.data.status === "successful") {
-        // SUCCESS: Trigger manual fallback webhook to Uncanny Automator
-        const webhookUrl = "https://www.theteacherandherclassroom.ng/wp-json/uap/v2/uap-17-18";
+        const verifiedData = response.data.data;
+        const txRef = verifiedData.tx_ref;
+        const transactionId = String(verifiedData.id);
+
+        // SUCCESS: Trigger manual fallback webhook to Uncanny Automator if not already processed
+        const webhookUrl = process.env.UNCANNY_AUTOMATOR_WEBHOOK_URL;
         
-        console.log(`[Verify] Payment Successful. Triggering manual fallback webhook to Uncanny Automator...`);
-        
-        try {
-          const webhookResponse = await axios.post(webhookUrl, {
-            event: 'charge.completed',
-            status: 'successful',
-            tx_ref: response.data.data.tx_ref,
-            amount: String(response.data.data.amount),
-            currency: response.data.data.currency,
-            payment_type: response.data.data.payment_type,
-            customer_email: response.data.data.customer?.email,
-            customer_name: response.data.data.customer?.name,
-            customer_phone: response.data.data.customer?.phone_number,
-            verification_source: 'site_fallback'
-          });
-          console.log(`[Verify] Manual Webhook Trigger Response:`, webhookResponse.status, webhookResponse.data);
-        } catch (webhookErr: any) {
-          console.error(`[Verify] Manual Webhook Trigger Failed:`, webhookErr.response?.data || webhookErr.message);
+        if (webhookUrl && !processedTransactions.has(txRef) && !processedTransactions.has(transactionId)) {
+          // Construct flattened payload
+          const flatPayload = {
+            event: "charge.completed",
+            status: verifiedData.status,
+            tx_ref: txRef,
+            amount: String(verifiedData.amount),
+            currency: verifiedData.currency,
+            payment_type: verifiedData.payment_type,
+            customer_email: verifiedData.customer?.email,
+            customer_name: verifiedData.customer?.name,
+            customer_phone: verifiedData.customer?.phone_number,
+            verification_source: 'site_verification_callback'
+          };
+
+          console.log(`[Verify] Payment Successful (Status: ${verifiedData.status}). Triggering manual fallback webhook...`);
+          console.log(`[Verify] Flattened Payload:`, JSON.stringify(flatPayload, null, 2));
+          
+          try {
+            const webhookResponse = await axios.post(webhookUrl, flatPayload, {
+              headers: { 'Content-Type': 'application/json' }
+            });
+            console.log(`[Verify] Uncanny Response Status:`, webhookResponse.status);
+            console.log(`[Verify] Uncanny Response Body:`, JSON.stringify(webhookResponse.data, null, 2));
+            
+            // Mark as processed
+            processedTransactions.add(txRef);
+            processedTransactions.add(transactionId);
+          } catch (webhookErr: any) {
+            console.error(`[Verify] Uncanny Webhook Trigger Failed:`, webhookErr.response?.data || webhookErr.message);
+          }
+        } else {
+          console.log(`[Verify] Webhook already processed or URL missing for transaction ${txRef}/${transactionId}`);
         }
 
-        res.json({ status: "success", data: response.data.data });
+        res.json({ status: "success", data: verifiedData });
       } else {
         console.warn(`[Verify] Transaction check failed. Status: ${response.data?.data?.status || 'unknown'}`);
         res.status(400).json({ status: "failed", message: `Transaction status: ${response.data?.data?.status || 'failed'}` });
