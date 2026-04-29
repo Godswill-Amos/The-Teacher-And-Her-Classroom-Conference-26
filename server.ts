@@ -147,7 +147,7 @@ async function startServer() {
         const webhookUrl = process.env.UNCANNY_AUTOMATOR_WEBHOOK_URL;
         
         if (webhookUrl && !processedTransactions.has(txRef) && !processedTransactions.has(transactionId)) {
-          // Construct flattened payload strictly as requested
+          // Construct flattened payload strictly as requested, preferring meta values
           const flatPayload = {
             event: "charge.completed",
             status: verifiedData.status,
@@ -155,9 +155,9 @@ async function startServer() {
             amount: String(verifiedData.amount),
             currency: verifiedData.currency,
             payment_type: verifiedData.payment_type,
-            customer_email: verifiedData.customer?.email,
-            customer_name: verifiedData.customer?.name,
-            customer_phone: verifiedData.customer?.phone_number
+            customer_email: verifiedData.meta?.customer_email || verifiedData.customer?.email,
+            customer_name: verifiedData.meta?.customer_name || verifiedData.customer?.name,
+            customer_phone: verifiedData.meta?.customer_phone || verifiedData.customer?.phone_number
           };
 
           console.log(`[Verify] Transaction ${txRef} verified successfully.`);

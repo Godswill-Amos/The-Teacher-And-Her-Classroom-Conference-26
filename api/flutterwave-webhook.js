@@ -14,7 +14,7 @@ export default async function handler(req, res) {
     return res.status(200).json({ received: true });
   }
 
-  // Flatten the nested Flutterwave data into simple keys
+  // Flatten the nested Flutterwave data into simple keys, preferring meta values
   const flatPayload = {
     event: body.event,
     status: body.data.status,
@@ -22,9 +22,9 @@ export default async function handler(req, res) {
     amount: String(body.data.amount),
     currency: body.data.currency,
     payment_type: body.data.payment_type,
-    customer_email: body.data.customer.email,
-    customer_name: body.data.customer.name,
-    customer_phone: body.data.customer.phone_number
+    customer_email: body.data.meta?.customer_email || body.data.customer?.email,
+    customer_name: body.data.meta?.customer_name || body.data.customer?.name,
+    customer_phone: body.data.meta?.customer_phone || body.data.customer?.phone_number
   };
 
   // Forward the flattened data to Uncanny Automator

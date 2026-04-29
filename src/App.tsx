@@ -96,12 +96,17 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
       phone_number: formData.phone,
       name: formData.fullName,
     },
-    customizations: {
-      title: 'Conference 2026',
-      description: 'Registration for Conference 2026',
-      logo: 'https://picsum.photos/seed/edu/200/200',
+    meta: {
+      customer_email: formData.email,
+      customer_name: formData.fullName,
+      customer_phone: formData.phone
     },
-  }), [price, formData, effectivePublicKey]);
+    customizations: {
+      title: 'The Teacher & Her Classroom',
+      description: `Registration for ${formatted} package`,
+      logo: 'https://www.theteacherandherclassroom.ng/wp-content/uploads/2024/01/logo.png',
+    },
+  }), [price, formData, effectivePublicKey, formatted]);
 
   const handleFlutterwavePayment = useFlutterwave(flutterwaveConfig);
 
