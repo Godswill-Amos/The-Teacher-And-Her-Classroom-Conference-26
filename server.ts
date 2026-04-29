@@ -42,77 +42,41 @@ async function startServer() {
       name,
       email,
       phone,
-      status,
-      gateway,
-      price,
-      reference
+      status
     } = req.body;
 
-    // Split full name into first and last
-    const nameParts = (name || '').trim().split(' ');
-    const firstName = nameParts[0] || '';
-    const lastName = nameParts.slice(1).join(' ') || '';
+    // Use Uncanny Automator webhook for Checkout Started
+    const webhookUrl = process.env.UNCANNY_CHECKOUT_STARTED_WEBHOOK_URL;
 
-    // Assign tags based on payment status
-    const tags = status === 'paid'
-      ? ['Paid - Conference 2026', price <= 7000 ? 'Early Bird' : 'Standard Price']
-      : ['Checkout Started'];
+    if (!webhookUrl) {
+      console.log("[Capture Lead] UNCANNY_CHECKOUT_STARTED_WEBHOOK_URL missing, skipping.");
+      return res.json({ success: true, message: "Webhook URL missing" });
+    }
 
-    const contactPayload = {
-      email,
-      first_name: firstName,
-      last_name: lastName,
-      phone,
-      tags,
-      lists: ['Conference 2026'],
-      custom_values: {
-        payment_gateway: gateway || 'flutterwave',
-        amount_paid: price ? `₦${price.toLocaleString()}` : '',
-        payment_reference: reference || '',
-        checkout_status: status || 'started'
-      }
+    const payload = {
+      "event": "checkout.started",
+      "status": status || "started",
+      "customer_email": email,
+      "customer_name": name,
+      "customer_phone": phone
     };
 
+    console.log(`[Capture Lead] Sending payload to Uncanny:`, JSON.stringify(payload, null, 2));
+
     try {
-      const wpUser = process.env.WP_USERNAME;
-      const wpPass = process.env.WP_APP_PASSWORD;
-      const wpUrl = process.env.WP_URL;
+      const response = await axios.post(webhookUrl, payload, {
+        headers: { 'Content-Type': 'application/json' }
+      });
 
-      if (!wpUser || !wpPass || !wpUrl) {
-        console.log("WP credentials missing, skipping Fluent CRM sync");
-        return res.json({ success: true, message: "WP credentials missing" });
-      }
-
-      // Clean WP URL and ensure it has a protocol
-      let cleanWpUrl = wpUrl.trim().replace(/\/$/, "");
-      if (!cleanWpUrl.startsWith('http')) {
-        cleanWpUrl = `https://${cleanWpUrl}`;
-      }
-
-      // Encode credentials for Basic Auth
-      const credentials = Buffer.from(`${wpUser}:${wpPass}`).toString('base64');
-
-      const response = await axios.post(
-        `${cleanWpUrl}/wp-json/fluent-crm/v2/contacts`,
-        {
-          ...contactPayload,
-          status: 'subscribed' // Ensure contact is marked as subscribed
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Basic ${credentials}`
-          }
-        }
-      );
-
-      console.log('Fluent CRM response:', response.data);
+      console.log(`[Capture Lead] Uncanny Response Status:`, response.status);
+      console.log(`[Capture Lead] Uncanny Response Body:`, JSON.stringify(response.data, null, 2));
+      
       res.status(200).json({ success: true, data: response.data });
-
     } catch (error: any) {
       const errorData = error.response?.data || error.message;
-      console.error('Capture lead error:', typeof errorData === 'object' ? JSON.stringify(errorData, null, 2) : errorData);
-      res.status(200).json({ success: true });
+      console.error('[Capture Lead] Uncanny Trigger Failed:', typeof errorData === 'object' ? JSON.stringify(errorData, null, 2) : errorData);
+      // Still return 200 to not block the frontend
+      res.status(200).json({ success: true, error: errorData });
     }
   });
 

@@ -27,6 +27,10 @@ export default async function handler(req, res) {
     customer_phone: body.data.meta?.customer_phone || body.data.customer?.phone_number
   };
 
+  console.log(`[Webhook] Incoming Meta:`, JSON.stringify(body.data.meta, null, 2));
+  console.log(`[Webhook] Incoming Customer:`, JSON.stringify(body.data.customer, null, 2));
+  console.log(`[Webhook] Forwarding Payload to Uncanny:`, JSON.stringify(flatPayload, null, 2));
+
   // Forward the flattened data to Uncanny Automator
   try {
     const automatorUrl = process.env.UNCANNY_AUTOMATOR_WEBHOOK_URL;
