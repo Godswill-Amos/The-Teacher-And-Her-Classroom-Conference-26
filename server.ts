@@ -147,7 +147,7 @@ async function startServer() {
         const webhookUrl = process.env.UNCANNY_AUTOMATOR_WEBHOOK_URL;
         
         if (webhookUrl && !processedTransactions.has(txRef) && !processedTransactions.has(transactionId)) {
-          // Construct flattened payload
+          // Construct flattened payload strictly as requested
           const flatPayload = {
             event: "charge.completed",
             status: verifiedData.status,
@@ -157,12 +157,11 @@ async function startServer() {
             payment_type: verifiedData.payment_type,
             customer_email: verifiedData.customer?.email,
             customer_name: verifiedData.customer?.name,
-            customer_phone: verifiedData.customer?.phone_number,
-            verification_source: 'site_verification_callback'
+            customer_phone: verifiedData.customer?.phone_number
           };
 
-          console.log(`[Verify] Payment Successful (Status: ${verifiedData.status}). Triggering manual fallback webhook...`);
-          console.log(`[Verify] Flattened Payload:`, JSON.stringify(flatPayload, null, 2));
+          console.log(`[Verify] Transaction ${txRef} verified successfully.`);
+          console.log(`[Verify] Sending flattened payload to Uncanny:`, JSON.stringify(flatPayload, null, 2));
           
           try {
             const webhookResponse = await axios.post(webhookUrl, flatPayload, {
@@ -178,7 +177,7 @@ async function startServer() {
             console.error(`[Verify] Uncanny Webhook Trigger Failed:`, webhookErr.response?.data || webhookErr.message);
           }
         } else {
-          console.log(`[Verify] Webhook already processed or URL missing for transaction ${txRef}/${transactionId}`);
+          console.log(`[Verify] Skipping Uncanny forward (already processed or webhook URL missing): ${txRef}`);
         }
 
         res.json({ status: "success", data: verifiedData });
