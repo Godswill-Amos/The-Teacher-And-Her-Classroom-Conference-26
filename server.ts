@@ -5,11 +5,31 @@ import { fileURLToPath } from "url";
 import cors from "cors";
 import axios from "axios";
 import dotenv from "dotenv";
+import * as admin from "firebase-admin";
+import fs from "fs";
 
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Initialize Firebase Admin
+const firebaseConfigPath = path.join(process.cwd(), "firebase-applet-config.json");
+let firestore: admin.firestore.Firestore | null = null;
+
+if (fs.existsSync(firebaseConfigPath)) {
+  const firebaseConfig = JSON.parse(fs.readFileSync(firebaseConfigPath, "utf-8"));
+  admin.initializeApp({
+    projectId: firebaseConfig.projectId,
+  });
+  firestore = admin.firestore();
+  // If specific database ID is provided in config, we should use it
+  if (firebaseConfig.firestoreDatabaseId) {
+    firestore = (admin as any).firestore(firebaseConfig.firestoreDatabaseId);
+  }
+} else {
+  console.warn("Firebase config not found. Persistence will be limited.");
+}
 
 async function startServer() {
   const app = express();
@@ -34,11 +54,57 @@ async function startServer() {
 
   // --- API Routes ---
 
-  const processedTransactions = new Set<string>();
-  
-  // Lead Storage for Webhook recovery (Local Memory Map)
-  // In production, this should be a DB like Redis or Firestore
-  const leadStorage = new Map<string, any>();
+  // Helper to mark a transaction as processed
+  const markAsProcessed = async (ref: string) => {
+    if (!firestore) return;
+    try {
+      await firestore.collection("processed_transactions").doc(ref).set({
+        processed_at: admin.firestore.FieldValue.serverTimestamp()
+      });
+    } catch (e: any) {
+      console.error(`[Firestore] Failed to mark ${ref} as processed:`, e.message);
+    }
+  };
+
+  // Helper to check if a transaction was processed
+  const isProcessed = async (ref: string) => {
+    if (!firestore) return false;
+    try {
+      const doc = await firestore.collection("processed_transactions").doc(ref).get();
+      return doc.exists;
+    } catch (e: any) {
+      console.error(`[Firestore] Failed to check if ${ref} is processed:`, e.message);
+      return false;
+    }
+  };
+
+  // Helper to store lead data in Firestore
+  const saveLead = async (tx_ref: string, data: any) => {
+    if (!firestore) {
+      console.error("[Firestore] Cannot save lead: Firestore not initialized.");
+      return;
+    }
+    try {
+      await firestore.collection("leads").doc(tx_ref).set({
+        ...data,
+        updated_at: admin.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+    } catch (e: any) {
+      console.error(`[Firestore] Failed to save lead for tx_ref ${tx_ref}:`, e.message);
+    }
+  };
+
+  // Helper to get lead data from Firestore
+  const getLead = async (tx_ref: string) => {
+    if (!firestore) return null;
+    try {
+      const doc = await firestore.collection("leads").doc(tx_ref).get();
+      return doc.exists ? doc.data() : null;
+    } catch (e: any) {
+      console.error(`[Firestore] Failed to get lead for tx_ref ${tx_ref}:`, e.message);
+      return null;
+    }
+  };
 
   // Lead Capture
   app.post("/api/capture-lead", async (req, res) => {
@@ -58,10 +124,10 @@ async function startServer() {
         customer_email: email,
         customer_name: name,
         customer_phone: phone,
-        captured_at: new Date().toISOString()
+        created_at: admin.firestore.FieldValue.serverTimestamp()
       };
-      leadStorage.set(tx_ref, leadData);
-      console.log(`[Capture Lead] Stored lead data for tx_ref ${tx_ref}:`, JSON.stringify(leadData, null, 2));
+      await saveLead(tx_ref, leadData);
+      console.log(`[Firestore] Saved lead data for tx_ref: ${tx_ref}`);
     }
 
     // Use Uncanny Automator webhook for Checkout Started
@@ -126,12 +192,16 @@ async function startServer() {
         const txRef = verifiedData.tx_ref;
         const transactionId = String(verifiedData.id);
 
+        // Check if already processed
+        const alreadyProcessedTxRef = await isProcessed(txRef);
+        const alreadyProcessedId = await isProcessed(transactionId);
+        
         // SUCCESS: Trigger manual fallback webhook to Uncanny Automator if not already processed
         const webhookUrl = process.env.UNCANNY_AUTOMATOR_WEBHOOK_URL;
         
-        if (webhookUrl && !processedTransactions.has(txRef) && !processedTransactions.has(transactionId)) {
+        if (webhookUrl && !alreadyProcessedTxRef && !alreadyProcessedId) {
           // Look up lead data from storage using tx_ref
-          const storedLead = leadStorage.get(txRef) || {};
+          const storedLead: any = await getLead(txRef) || {};
           console.log(`[Verify] Lead lookup for tx_ref ${txRef}:`, JSON.stringify(storedLead, null, 2));
 
           // Construct flattened payload strictly as requested, preferring stored values as primary source
@@ -158,8 +228,8 @@ async function startServer() {
             console.log(`[Verify] Uncanny Response Body:`, JSON.stringify(webhookResponse.data, null, 2));
             
             // Mark as processed
-            processedTransactions.add(txRef);
-            processedTransactions.add(transactionId);
+            await markAsProcessed(txRef);
+            await markAsProcessed(transactionId);
           } catch (webhookErr: any) {
             console.error(`[Verify] Uncanny Webhook Trigger Failed:`, webhookErr.response?.data || webhookErr.message);
           }
@@ -199,9 +269,11 @@ async function startServer() {
     const txRef = body.data.tx_ref;
     const transactionId = String(body.data.id);
 
-    if (txRef && !processedTransactions.has(txRef)) {
+    const alreadyProcessed = await isProcessed(txRef);
+
+    if (txRef && !alreadyProcessed) {
       // Look up lead data
-      const storedLead = leadStorage.get(txRef) || {};
+      const storedLead: any = await getLead(txRef) || {};
       console.log(`[Webhook] Lead lookup result for tx_ref ${txRef}:`, JSON.stringify(storedLead, null, 2));
 
       // Build payload with priority logic
@@ -224,8 +296,8 @@ async function startServer() {
       if (webhookUrl) {
         try {
           await axios.post(webhookUrl, flatPayload);
-          processedTransactions.add(txRef);
-          if (transactionId) processedTransactions.add(transactionId);
+          await markAsProcessed(txRef);
+          if (transactionId) await markAsProcessed(transactionId);
         } catch (e: any) {
           console.error('[Webhook] Forwarding to Uncanny failed:', e.message);
         }

@@ -59,6 +59,21 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [runtimePublicKey, setRuntimePublicKey] = useState<string | null>(null);
+  const [txRef, setTxRef] = useState<string>('');
+
+  // Generate a stable tx_ref when modal opens
+  useEffect(() => {
+    if (isOpen && !txRef) {
+      setTxRef('TAHCC_FW_' + Date.now());
+    }
+  }, [isOpen]);
+
+  // Reset txRef when modal closes to ensure fresh ref for next attempt if needed
+  // or keep it if you want to resume? User said "ONCE". 
+  // Let's reset it on close to avoid stale data if they re-open with different details.
+  useEffect(() => {
+    if (!isOpen) setTxRef('');
+  }, [isOpen]);
 
   // FIX 1: Add paymentSuccessRef to track payment success across closures
   const paymentSuccessRef = React.useRef(false);
@@ -87,7 +102,7 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
 
   const flutterwaveConfig = React.useMemo(() => ({
     public_key: effectivePublicKey || '',
-    tx_ref: 'TAHCC_FW_' + Date.now(),
+    tx_ref: txRef,
     amount: price,
     currency: 'NGN',
     payment_options: 'card,mobilemoney,ussd,account,banktransfer',
@@ -106,7 +121,7 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
       description: `Registration for ${formatted} package`,
       logo: 'https://www.theteacherandherclassroom.ng/wp-content/uploads/2024/01/logo.png',
     },
-  }), [price, formData, effectivePublicKey, formatted]);
+  }), [price, formData, effectivePublicKey, formatted, txRef]);
 
   const handleFlutterwavePayment = useFlutterwave(flutterwaveConfig);
 

@@ -1,0 +1,26 @@
+{
+  "entities": {
+    "Lead": {
+      "title": "Lead",
+      "description": "Customer lead data captured during checkout initialization to link with payment webhooks.",
+      "type": "object",
+      "properties": {
+        "customer_email": { "type": "string", "format": "email" },
+        "customer_name": { "type": "string" },
+        "customer_phone": { "type": "string" },
+        "tx_ref": { "type": "string" },
+        "status": { "type": "string" },
+        "amount": { "type": "number" },
+        "currency": { "type": "string" },
+        "captured_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["customer_email", "tx_ref"]
+    }
+  },
+  "firestore": {
+    "leads/{tx_ref}": {
+      "schema": "Lead",
+      "description": "Collection of leads keyed by Flutterwave tx_ref."
+    }
+  }
+}
