@@ -6,6 +6,7 @@ import cors from "cors";
 import axios from "axios";
 import dotenv from "dotenv";
 import * as admin from "firebase-admin";
+import { getFirestore } from "firebase-admin/firestore";
 import fs from "fs";
 
 dotenv.config();
@@ -13,27 +14,43 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Initialize Firebase Admin
-const firebaseConfigPath = path.join(process.cwd(), "firebase-applet-config.json");
-let firestore: admin.firestore.Firestore | null = null;
-
-if (fs.existsSync(firebaseConfigPath)) {
-  const firebaseConfig = JSON.parse(fs.readFileSync(firebaseConfigPath, "utf-8"));
-  admin.initializeApp({
-    projectId: firebaseConfig.projectId,
-  });
-  firestore = admin.firestore();
-  // If specific database ID is provided in config, we should use it
-  if (firebaseConfig.firestoreDatabaseId) {
-    firestore = (admin as any).firestore(firebaseConfig.firestoreDatabaseId);
-  }
-} else {
-  console.warn("Firebase config not found. Persistence will be limited.");
-}
-
 async function startServer() {
   const app = express();
   const PORT = 3000;
+
+  // Initialize Firebase Admin safely
+  let firestore: any = null;
+  try {
+    const firebaseConfigPath = path.join(process.cwd(), "firebase-applet-config.json");
+    if (fs.existsSync(firebaseConfigPath)) {
+      const firebaseConfig = JSON.parse(fs.readFileSync(firebaseConfigPath, "utf-8"));
+      
+      // Check if already initialized to avoid "app already exists" error
+      let firebaseApp;
+      if (admin.apps.length === 0) {
+        firebaseApp = admin.initializeApp({
+          projectId: firebaseConfig.projectId,
+        });
+      } else {
+        firebaseApp = admin.app();
+      }
+      
+      // Connect to Firestore (with named database support if present)
+      const dbId = firebaseConfig.firestoreDatabaseId;
+      if (dbId) {
+        firestore = getFirestore(firebaseApp, dbId);
+        console.log(`[Firebase] Initialized with database: ${dbId}`);
+      } else {
+        firestore = getFirestore(firebaseApp);
+        console.log("[Firebase] Initialized with default database");
+      }
+    } else {
+      console.warn("[Firebase] Config not found. Persistence will be disabled.");
+    }
+  } catch (err: any) {
+    console.error("[Firebase] Initialization error:", err.message);
+    // Continue without firestore
+  }
 
   console.log('--- Environment Diagnostic ---');
   console.log('VITE_FLUTTERWAVE_PUBLIC_KEY:', process.env.VITE_FLUTTERWAVE_PUBLIC_KEY ? 'Present' : 'Missing');
@@ -272,24 +289,28 @@ async function startServer() {
     const alreadyProcessed = await isProcessed(txRef);
 
     if (txRef && !alreadyProcessed) {
-      // Look up lead data
-      const storedLead: any = await getLead(txRef) || {};
-      console.log(`[Webhook] Lead lookup result for tx_ref ${txRef}:`, JSON.stringify(storedLead, null, 2));
+      // Try tx_ref first, then transaction_id
+      let storedLead: any = await getLead(txRef) || await getLead(transactionId) || {};
+
+      console.log('[Webhook] tx_ref:', txRef);
+      console.log('[Webhook] storedLead:', JSON.stringify(storedLead));
+      console.log('[Webhook] Flutterwave customer:', JSON.stringify(body.data.customer));
 
       // Build payload with priority logic
       const flatPayload = {
-        event: body.event || "charge.completed",
+        event: body.event || 'charge.completed',
         status: body.data.status,
         tx_ref: txRef,
+        transaction_id: transactionId,
         amount: String(body.data.amount),
         currency: body.data.currency,
         payment_type: body.data.payment_type,
-        customer_email: storedLead.customer_email || body.data.customer?.email,
-        customer_name: storedLead.customer_name || body.data.customer?.name,
-        customer_phone: storedLead.customer_phone || body.data.customer?.phone_number
+        customer_email: storedLead.customer_email || body.data.customer?.email || '',
+        customer_name: storedLead.customer_name || body.data.customer?.name || '',
+        customer_phone: storedLead.customer_phone || body.data.customer?.phone_number || ''
       };
 
-      console.log(`[Webhook] Final payload sent to Uncanny:`, JSON.stringify(flatPayload, null, 2));
+      console.log('[Webhook] Sending to Uncanny Automator:', JSON.stringify(flatPayload));
 
       // Forward to Uncanny
       const webhookUrl = process.env.UNCANNY_AUTOMATOR_WEBHOOK_URL;

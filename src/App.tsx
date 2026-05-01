@@ -77,6 +77,14 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
 
   // FIX 1: Add paymentSuccessRef to track payment success across closures
   const paymentSuccessRef = React.useRef(false);
+  const txRefRef = React.useRef('TAHCC_FW_' + Date.now());
+
+  // Reset txRef when modal closes to ensure fresh ref for next attempt if needed
+  const resetTxRef = () => {
+    if (!paymentSuccessRef.current) {
+      txRefRef.current = 'TAHCC_FW_' + Date.now();
+    }
+  };
 
   // Fetch public key at runtime if missing from build (prevents redeploy requirement)
   useEffect(() => {
@@ -102,7 +110,7 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
 
   const flutterwaveConfig = React.useMemo(() => ({
     public_key: effectivePublicKey || '',
-    tx_ref: txRef,
+    tx_ref: txRefRef.current,
     amount: price,
     currency: 'NGN',
     payment_options: 'card,mobilemoney,ussd,account,banktransfer',
@@ -121,7 +129,7 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
       description: `Registration for ${formatted} package`,
       logo: 'https://www.theteacherandherclassroom.ng/wp-content/uploads/2024/01/logo.png',
     },
-  }), [price, formData, effectivePublicKey, formatted, txRef]);
+  }), [price, formData, effectivePublicKey, formatted]);
 
   const handleFlutterwavePayment = useFlutterwave(flutterwaveConfig);
 
@@ -129,26 +137,26 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
     setFormData({ ...formData, [e.target.id]: e.target.value });
   };
 
-  const captureAbandonedLead = async (status: string, txRef?: string, transaction_id?: string) => {
+  const captureAbandonedLead = async (status: string, txRef?: string, transactionId?: string) => {
     try {
-      await fetch('/api/capture-lead', {
+      fetch('/api/capture-lead', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...formData,
           name: formData.fullName,
+          email: formData.email,
+          phone: formData.phone,
           gateway: 'flutterwave',
-          price,
+          price: getCurrentPrice(),
           status,
           tx_ref: txRef,
-          reference: transaction_id || txRef,
+          transaction_id: transactionId,
           timestamp: new Date().toISOString(),
           source: 'conference_2026_modal_checkout'
-        })
-      });
-    } catch (e) {
-      // Fail silently
-    }
+        }),
+        keepalive: true
+      }).catch(() => {});
+    } catch(e) {}
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -169,8 +177,8 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
     // FIX 2: Reset the ref before each new payment attempt
     paymentSuccessRef.current = false;
 
-    // Use the tx_ref already prepared in the memoized config
-    const tx_ref = flutterwaveConfig.tx_ref;
+    // Use the stable txRefRef.current
+    const tx_ref = txRefRef.current;
 
     // Capture lead with tx_ref to link with webhook later
     captureAbandonedLead('checkout_started', tx_ref);
@@ -189,7 +197,7 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
           // FIX 2: Mark as successful BEFORE modal closes so onClose does nothing
           paymentSuccessRef.current = true;
           handlePaymentSuccess(
-            String(response.transaction_id || response.tx_ref),
+            String(response.transaction_id || response.tx_ref || response.id),
             'flutterwave',
             tx_ref
           );
@@ -203,6 +211,7 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
         if (!paymentSuccessRef.current) {
           setIsLoading(false);
           setCancelMsg(true);
+          resetTxRef();
           setTimeout(() => setCancelMsg(false), 5000);
         }
         // If payment succeeded, do nothing - redirect is already happening
