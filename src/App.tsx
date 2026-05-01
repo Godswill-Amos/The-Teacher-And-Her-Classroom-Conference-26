@@ -55,10 +55,11 @@ function formatPrice(amount: number) {
 // --- Checkout Modal ---
 
 const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
-  const [formData, setFormData] = useState({ fullName: '', email: '', phone: '' });
+  const [step, setStep] = useState<1 | 2>(1);
+  const [formData, setFormData] = useState({ name: '', email: '', phone: '' });
+  const [formCompleted, setFormCompleted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [runtimePublicKey, setRuntimePublicKey] = useState<string | null>(null);
 
   // FIX 1: Add paymentSuccessRef to track payment success across closures
   const paymentSuccessRef = React.useRef(false);
@@ -66,6 +67,38 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
   const effectivePublicKey = import.meta.env.VITE_FLUTTERWAVE_PUBLIC_KEY;
   const [cancelMsg, setCancelMsg] = useState(false);
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
+
+  // Fluent Form Completion Listener
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      console.log('[Modal] Received postMessage:', event.data);
+      if (event.data?.type === 'fluentform_submission_success') {
+        const { name, email, phone } = event.data.data || {};
+        console.log('[Modal] Form data captured:', { name, email, phone });
+        setFormData({ 
+          name: name || '', 
+          email: email || '', 
+          phone: phone || '' 
+        });
+        setFormCompleted(true);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
+
+  // Reset state when modal opens/closes
+  useEffect(() => {
+    if (!isOpen) {
+      setTimeout(() => {
+        setStep(1);
+        setFormCompleted(false);
+        setError(null);
+        setIsLoading(false);
+      }, 300);
+    }
+  }, [isOpen]);
 
   // Safety net: Clear isLoading if Flutterwave fails to trigger
   useEffect(() => {
@@ -92,7 +125,7 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
     customer: {
       email: formData.email,
       phone_number: formData.phone,
-      name: formData.fullName,
+      name: formData.name,
     },
     customizations: {
       title: 'The Teacher & Her Classroom',
@@ -103,26 +136,15 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
 
   const handleFlutterwavePayment = useFlutterwave(flutterwaveConfig);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({ ...formData, [e.target.id]: e.target.value });
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.fullName || formData.fullName.length < 2) return setError('Please enter your full name.');
-    if (!formData.email || !formData.email.includes('@')) return setError('Please enter a valid email address.');
-    if (!formData.phone || formData.phone.length < 8) return setError('Please enter a valid phone number.');
-
+  const handlePaymentStart = () => {
     if (!effectivePublicKey) {
-      console.error('Flutterwave Public Key is missing. Please ensure VITE_FLUTTERWAVE_PUBLIC_KEY is set in your environment variables.');
-      return setError('Payment system is currently being configured (Missing API Key). Please ensure your Flutterwave Public Key is added to the app settings.');
+      console.error('Flutterwave Public Key is missing.');
+      return setError('Payment system is currently being configured.');
     }
 
     setIsLoading(true);
     setError(null);
     setCancelMsg(false);
-
-    // Mark as not successful at start of attempt
     paymentSuccessRef.current = false;
 
     handleFlutterwavePayment({
@@ -159,12 +181,6 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
     window.location.href = redirectUrl;
   };
 
-  const handlePaymentCancelled = () => {
-    setIsLoading(false);
-    setCancelMsg(true);
-    setTimeout(() => setCancelMsg(false), 5000);
-  };
-
   return (
     <AnimatePresence>
       {isOpen && (
@@ -181,7 +197,7 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            className="relative bg-bg-card border border-border-custom w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-xl shadow-2xl flex flex-col lg:grid lg:grid-cols-[380px_1fr]"
+            className="relative bg-bg-card border border-border-custom w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-xl shadow-2xl flex flex-col lg:grid lg:grid-cols-[380px_1fr]"
           >
             <button 
               onClick={onClose}
@@ -190,8 +206,8 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
               <X className="w-6 h-6" />
             </button>
 
-            {/* Order Summary - Top on mobile, Left on desktop */}
-            <div className="bg-bg-section border-r border-border-custom order-1 lg:order-1 pt-12 lg:pt-0">
+            {/* Order Summary - Side on desktop, Toggle on mobile */}
+            <div className="bg-bg-section border-r border-border-custom order-1 lg:order-1 pt-12 lg:pt-0 overflow-y-auto">
               {/* Mobile Toggle Header */}
               <button 
                 type="button"
@@ -237,7 +253,7 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
                     <span className="text-3xl text-primary-orange font-display">{formatted}</span>
                   </div>
                   <p className="text-[11px] text-text-dim mt-2 text-right">
-                    {isEarlyBird ? 'Early bird price. Goes up July 1st.' : 'Standard registration price'}
+                    {isEarlyBird ? 'Early bird price.' : 'Standard price'}
                   </p>
                 </div>
 
@@ -260,84 +276,123 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
               </div>
             </div>
 
-            {/* Checkout Form - Bottom on mobile, Right on desktop */}
-            <div className="p-8 md:p-12 order-2 lg:order-2">
-              <div className="mb-8">
-                <h2 className="text-3xl text-text-white mb-2 font-display">Secure Checkout</h2>
-                <p className="text-sm text-text-muted">Fill in your details below to complete your registration.</p>
-              </div>
+            {/* Main Content Area */}
+            <div className="flex flex-col h-full overflow-y-auto order-2 lg:order-2">
+              {step === 1 ? (
+                <div className="flex flex-col h-full bg-bg-card">
+                  <div className="p-8 pb-4 border-b border-border-custom">
+                    <div className="flex items-center gap-4 mb-4">
+                      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary-orange text-white font-mono text-sm font-bold">1</div>
+                      <h2 className="text-2xl text-text-white font-display">Contact Information</h2>
+                    </div>
+                    <p className="text-sm text-text-muted">Fill the form below to lock in your details. We'll use this to send your tickets.</p>
+                  </div>
 
-              <form onSubmit={handleSubmit} className="space-y-5">
-                <div className="space-y-2">
-                  <label className="block font-mono text-[10px] font-bold text-text-muted uppercase tracking-wider" htmlFor="fullName">Full Name</label>
-                  <input 
-                    type="text" 
-                    id="fullName" 
-                    value={formData.fullName}
-                    onChange={handleInputChange}
-                    placeholder="John Doe" 
-                    className="w-full bg-transparent border border-primary-orange/20 rounded-md px-4 py-3 text-text-white focus:outline-none focus:border-primary-orange transition-colors"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="block font-mono text-[10px] font-bold text-text-muted uppercase tracking-wider" htmlFor="email">Email Address</label>
-                  <input 
-                    type="email" 
-                    id="email" 
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    placeholder="john@example.com" 
-                    className="w-full bg-transparent border border-primary-orange/20 rounded-md px-4 py-3 text-text-white focus:outline-none focus:border-primary-orange transition-colors"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="block font-mono text-[10px] font-bold text-text-muted uppercase tracking-wider" htmlFor="phone">Phone Number</label>
-                  <div className="phone-input-container">
-                    <PhoneInput
-                      country={'ng'}
-                      value={formData.phone}
-                      onChange={(phone) => setFormData({ ...formData, phone })}
-                      inputProps={{
-                        id: 'phone',
-                        required: true,
-                      }}
-                      containerClass="!w-full"
-                      inputClass="!w-full !bg-transparent !border !border-primary-orange/20 !rounded-md !px-4 !py-3 !h-auto !text-text-white !focus:outline-none !focus:border-primary-orange !transition-colors !pl-12"
-                      buttonClass="!bg-transparent !border-none !rounded-l-md !hover:bg-transparent"
-                      dropdownClass="!bg-bg-card !text-text-white !border-border-custom"
-                      searchClass="!bg-bg-section !text-text-white"
+                  <div className="flex-1 min-h-[500px] relative">
+                    <iframe 
+                      id="fluentform"
+                      src="https://www.theteacherandherclassroom.ng/?ff_landing=3&embedded=1" 
+                      className="w-full h-full min-h-[500px] border-none bg-transparent"
+                      title="Registration Form"
+                      loading="lazy"
                     />
+                    {!formCompleted && (
+                      <div className="absolute top-4 right-4 animate-pulse">
+                        <div className="bg-primary-orange/20 text-primary-orange text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full border border-primary-orange/30">
+                          Waiting for form...
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="p-8 bg-bg-section/30 border-t border-border-custom">
+                    <button 
+                      onClick={() => setStep(2)}
+                      disabled={!formCompleted}
+                      className="w-full bg-primary-orange text-white font-mono text-sm font-bold tracking-wider uppercase py-4 rounded-md transition-all hover:bg-primary-dark disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-3 shadow-lg"
+                    >
+                      {formCompleted ? 'Continue to Payment' : 'Fill output form above to continue'} <ArrowRight className="w-4 h-4" />
+                    </button>
+                    {!formCompleted && (
+                      <p className="text-[10px] text-text-muted text-center mt-3 italic">
+                        Please complete and submit the form above to continue.
+                      </p>
+                    )}
                   </div>
                 </div>
-
-                {error && (
-                  <div className="bg-error/10 border border-error text-error text-xs p-3 rounded-md">
-                    {error}
+              ) : (
+                <div className="p-8 md:p-12">
+                  <div className="mb-8">
+                    <div className="flex items-center gap-4 mb-4">
+                      <div className="flex items-center justify-center w-8 h-8 rounded-full bg-green-500 text-white"><Check className="w-5 h-5" /></div>
+                      <h2 className="text-3xl text-text-white font-display">Review & Pay</h2>
+                    </div>
+                    <p className="text-sm text-text-muted">Your contact details have been captured. Complete your payment to lock in your spot.</p>
                   </div>
-                )}
 
-                <button 
-                  type="submit" 
-                  disabled={isLoading}
-                  className="w-full bg-primary-orange text-white font-mono text-sm font-bold tracking-wider uppercase py-4 rounded-md transition-all hover:bg-primary-dark disabled:opacity-50 flex items-center justify-center gap-3 shadow-lg"
-                >
-                  {isLoading ? (
-                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  ) : (
-                    <>Complete Purchase <ArrowRight className="w-4 h-4" /></>
+                  <div className="bg-bg-section border border-border-custom rounded-xl p-6 mb-8 space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <div className="font-mono text-[10px] text-text-dim uppercase tracking-widest mb-1">Attendee Name</div>
+                        <div className="text-text-white font-medium">{formData.name || 'Not provided'}</div>
+                      </div>
+                      <div>
+                        <div className="font-mono text-[10px] text-text-dim uppercase tracking-widest mb-1">Email Address</div>
+                        <div className="text-text-white font-medium">{formData.email || 'Not provided'}</div>
+                      </div>
+                      <div>
+                        <div className="font-mono text-[10px] text-text-dim uppercase tracking-widest mb-1">Phone Number</div>
+                        <div className="text-text-white font-medium">{formData.phone || 'Not provided'}</div>
+                      </div>
+                      <div>
+                        <div className="font-mono text-[10px] text-text-dim uppercase tracking-widest mb-1">Quantity</div>
+                        <div className="text-text-white font-medium">1 Registration</div>
+                      </div>
+                    </div>
+                    <div className="pt-4 border-t border-border-custom flex justify-between items-center text-sm">
+                      <button 
+                        onClick={() => setStep(1)}
+                        className="text-primary-orange hover:underline underline-offset-4 flex items-center gap-1"
+                      >
+                        ← Back to form
+                      </button>
+                      <span className="text-text-muted">Secure transaction</span>
+                    </div>
+                  </div>
+
+                  {error && (
+                    <div className="bg-error/10 border border-error text-error text-xs p-3 rounded-md mb-6">
+                      {error}
+                    </div>
                   )}
-                </button>
 
-                {cancelMsg && (
-                  <div className="text-center text-xs text-primary-orange font-medium animate-pulse">
-                    Payment window closed. Your spot is still waiting.
+                  <button 
+                    onClick={handlePaymentStart}
+                    disabled={isLoading}
+                    className="w-full bg-primary-orange text-white font-mono text-sm font-bold tracking-wider uppercase py-4 rounded-md transition-all hover:bg-primary-dark disabled:opacity-50 flex items-center justify-center gap-3 shadow-lg"
+                  >
+                    {isLoading ? (
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      <>Pay {formatted} with Flutterwave <CreditCard className="w-4 h-4" /></>
+                    )}
+                  </button>
+
+                  <div className="mt-8 pt-8 border-t border-border-custom">
+                    <div className="flex items-center justify-center gap-6 opacity-30">
+                      <img src="https://img.icons8.com/color/48/visa.png" alt="Visa" className="h-6 grayscale" />
+                      <img src="https://img.icons8.com/color/48/mastercard.png" alt="Mastercard" className="h-6 grayscale" />
+                      <img src="https://img.icons8.com/color/48/interac.png" alt="Card" className="h-6 grayscale" />
+                    </div>
                   </div>
-                )}
 
-                <p className="text-[10px] text-text-dim text-center leading-relaxed">
-                  By completing this purchase, you agree to our Terms of Service and Privacy Policy. Your data is processed securely.
-                </p>
-              </form>
+                  {cancelMsg && (
+                    <div className="mt-4 text-center text-xs text-primary-orange font-medium animate-pulse">
+                      Payment window closed. Your spot is still waiting.
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </motion.div>
         </div>
