@@ -59,21 +59,6 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [runtimePublicKey, setRuntimePublicKey] = useState<string | null>(null);
-  const [txRef, setTxRef] = useState<string>('');
-
-  // Generate a stable tx_ref when modal opens
-  useEffect(() => {
-    if (isOpen && !txRef) {
-      setTxRef('TAHCC_FW_' + Date.now());
-    }
-  }, [isOpen]);
-
-  // Reset txRef when modal closes to ensure fresh ref for next attempt if needed
-  // or keep it if you want to resume? User said "ONCE". 
-  // Let's reset it on close to avoid stale data if they re-open with different details.
-  useEffect(() => {
-    if (!isOpen) setTxRef('');
-  }, [isOpen]);
 
   // FIX 1: Add paymentSuccessRef to track payment success across closures
   const paymentSuccessRef = React.useRef(false);

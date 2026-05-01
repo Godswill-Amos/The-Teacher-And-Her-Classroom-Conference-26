@@ -130,10 +130,11 @@ async function startServer() {
       email,
       phone,
       status,
-      tx_ref
+      tx_ref,
+      transaction_id
     } = req.body;
 
-    console.log(`[Capture Lead] Received data for tx_ref: ${tx_ref || 'MISSING'}`);
+    console.log(`[Capture Lead] Received data for tx_ref: ${tx_ref || 'MISSING'}, id: ${transaction_id || 'MISSING'}`);
 
     // Store mapped data by tx_ref if available
     if (tx_ref) {
@@ -141,6 +142,8 @@ async function startServer() {
         customer_email: email,
         customer_name: name,
         customer_phone: phone,
+        transaction_id: transaction_id,
+        status: status,
         created_at: admin.firestore.FieldValue.serverTimestamp()
       };
       await saveLead(tx_ref, leadData);
@@ -156,11 +159,13 @@ async function startServer() {
     }
 
     const payload = {
-      "event": "checkout.started",
+      "event": status === "paid" ? "charge.completed" : "checkout.started",
       "status": status || "started",
       "customer_email": email,
       "customer_name": name,
-      "customer_phone": phone
+      "customer_phone": phone,
+      "tx_ref": tx_ref,
+      "transaction_id": transaction_id
     };
 
     console.log(`[Capture Lead] Sending payload to Uncanny:`, JSON.stringify(payload, null, 2));
@@ -217,8 +222,8 @@ async function startServer() {
         const webhookUrl = process.env.UNCANNY_AUTOMATOR_WEBHOOK_URL;
         
         if (webhookUrl && !alreadyProcessedTxRef && !alreadyProcessedId) {
-          // Look up lead data from storage using tx_ref
-          const storedLead: any = await getLead(txRef) || {};
+          // Try tx_ref first, then transaction_id
+          const storedLead: any = await getLead(txRef) || await getLead(transactionId) || {};
           console.log(`[Verify] Lead lookup for tx_ref ${txRef}:`, JSON.stringify(storedLead, null, 2));
 
           // Construct flattened payload strictly as requested, preferring stored values as primary source
