@@ -89,6 +89,18 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
   const [cancelMsg, setCancelMsg] = useState(false);
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
 
+  // Safety net: Clear isLoading if Flutterwave fails to trigger
+  useEffect(() => {
+    let timeout: any;
+    if (isLoading && !paymentSuccessRef.current) {
+      timeout = setTimeout(() => {
+        setIsLoading(false);
+        console.warn('[Checkout] Payment initialization timed out.');
+      }, 15000);
+    }
+    return () => clearTimeout(timeout);
+  }, [isLoading]);
+
   const price = getCurrentPrice();
   const formatted = formatPrice(price);
   const isEarlyBird = new Date() < EARLY_BIRD_END;
@@ -164,6 +176,9 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
 
     // Use the stable txRefRef.current
     const tx_ref = txRefRef.current;
+
+    console.log(`[Checkout] Using Public Key: ${effectivePublicKey?.substring(0, 15)}...`);
+    console.log(`[Checkout] Transaction Ref: ${tx_ref}`);
 
     // Capture lead with tx_ref to link with webhook later
     captureAbandonedLead('checkout_started', tx_ref);

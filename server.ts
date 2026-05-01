@@ -6,7 +6,7 @@ import cors from "cors";
 import axios from "axios";
 import dotenv from "dotenv";
 import * as admin from "firebase-admin";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import fs from "fs";
 
 dotenv.config();
@@ -44,6 +44,13 @@ async function startServer() {
         firestore = getFirestore(firebaseApp);
         console.log("[Firebase] Initialized with default database");
       }
+
+      // Verify connectivity with a silent write
+      await firestore.collection("_system").doc("health").set({
+        last_boot: FieldValue.serverTimestamp(),
+        project_id: firebaseConfig.projectId
+      }, { merge: true });
+      console.log("[Firebase] Connectivity verified successfully.");
     } else {
       console.warn("[Firebase] Config not found. Persistence will be disabled.");
     }
@@ -76,7 +83,7 @@ async function startServer() {
     if (!firestore) return;
     try {
       await firestore.collection("processed_transactions").doc(ref).set({
-        processed_at: admin.firestore.FieldValue.serverTimestamp()
+        processed_at: FieldValue.serverTimestamp()
       });
     } catch (e: any) {
       console.error(`[Firestore] Failed to mark ${ref} as processed:`, e.message);
@@ -104,7 +111,7 @@ async function startServer() {
     try {
       await firestore.collection("leads").doc(tx_ref).set({
         ...data,
-        updated_at: admin.firestore.FieldValue.serverTimestamp()
+        updated_at: FieldValue.serverTimestamp()
       }, { merge: true });
     } catch (e: any) {
       console.error(`[Firestore] Failed to save lead for tx_ref ${tx_ref}:`, e.message);
@@ -144,7 +151,7 @@ async function startServer() {
         customer_phone: phone,
         transaction_id: transaction_id,
         status: status,
-        created_at: admin.firestore.FieldValue.serverTimestamp()
+        created_at: FieldValue.serverTimestamp()
       };
       await saveLead(tx_ref, leadData);
       console.log(`[Firestore] Saved lead data for tx_ref: ${tx_ref}`);
@@ -184,6 +191,21 @@ async function startServer() {
       console.error('[Capture Lead] Uncanny Trigger Failed:', typeof errorData === 'object' ? JSON.stringify(errorData, null, 2) : errorData);
       // Still return 200 to not block the frontend
       res.status(200).json({ success: true, error: errorData });
+    }
+  });
+
+  app.get("/api/test-firebase", async (req, res) => {
+    if (!firestore) return res.status(500).json({ error: "Firestore not initialized" });
+    try {
+      const testRef = firestore.collection("_system").doc("health");
+      const doc = await testRef.get();
+      res.json({ 
+        success: true, 
+        data: doc.data(), 
+        databaseId: process.env.FIRESTORE_DATABASE_ID || "default (or named in config)" 
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
     }
   });
 
