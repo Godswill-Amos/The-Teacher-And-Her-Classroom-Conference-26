@@ -74,6 +74,13 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
       console.log('[Modal] Received postMessage:', event.data);
       if (event.data?.type === 'fluentform_submission_success') {
         const { name, email, phone } = event.data.data || {};
+
+        // Skip empty submissions
+        if (!email || !email.trim()) {
+          console.log('[Modal] Skipping empty submission');
+          return;
+        }
+
         console.log('[Modal] Form data captured:', { name, email, phone });
         setFormData({ 
           name: name || '', 
@@ -81,6 +88,7 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
           phone: phone || '' 
         });
         setFormCompleted(true);
+        setStep(2);
       }
     };
 
@@ -302,21 +310,6 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
                           Waiting for form...
                         </div>
                       </div>
-                    )}
-                  </div>
-
-                  <div className="p-8 bg-bg-section/30 border-t border-border-custom">
-                    <button 
-                      onClick={() => setStep(2)}
-                      disabled={!formCompleted}
-                      className="w-full bg-primary-orange text-white font-mono text-sm font-bold tracking-wider uppercase py-4 rounded-md transition-all hover:bg-primary-dark disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-3 shadow-lg"
-                    >
-                      {formCompleted ? 'Continue to Payment' : 'Fill output form above to continue'} <ArrowRight className="w-4 h-4" />
-                    </button>
-                    {!formCompleted && (
-                      <p className="text-[10px] text-text-muted text-center mt-3 italic">
-                        Please complete and submit the form above to continue.
-                      </p>
                     )}
                   </div>
                 </div>
