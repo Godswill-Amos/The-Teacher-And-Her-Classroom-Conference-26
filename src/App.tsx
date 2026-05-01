@@ -144,20 +144,36 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
 
   const handleFlutterwavePayment = useFlutterwave(flutterwaveConfig);
 
-  const handlePaymentStart = () => {
-    if (!effectivePublicKey) {
-      console.error('Flutterwave Public Key is missing.');
-      return setError('Payment system is currently being configured.');
-    }
+  const handlePaymentStart = async () => {
+    console.log('[Checkout] handlePaymentStart called');
+    console.log('[Checkout] formData:', formData);
+    console.log('[Checkout] FlutterwaveCheckout available?', typeof (window as any).FlutterwaveCheckout);
+    console.log('[Checkout] Public key set?', !!import.meta.env.VITE_FLUTTERWAVE_PUBLIC_KEY);
 
     setIsLoading(true);
     setError(null);
     setCancelMsg(false);
     paymentSuccessRef.current = false;
 
-    handleFlutterwavePayment({
-      ...flutterwaveConfig,
+    const config = {
+      public_key: import.meta.env.VITE_FLUTTERWAVE_PUBLIC_KEY,
+      tx_ref: 'TAHCC_FW_' + Date.now(),
+      amount: getCurrentPrice(),
+      currency: 'NGN',
+      payment_options: 'card,ussd,banktransfer',
+      redirect_url: window.location.origin + '/thankyou.html',
+      customer: {
+        email: formData.email,
+        phone_number: formData.phone,
+        name: formData.name
+      },
+      customizations: {
+        title: 'The Teacher & Her Classroom',
+        description: `Registration for ${formatted} package`,
+        logo: 'https://www.theteacherandherclassroom.ng/wp-content/uploads/2024/01/logo.png'
+      },
       callback: (response: any) => {
+        console.log('[Checkout] Flutterwave callback:', response);
         if (
           response.status === 'successful' ||
           response.status === 'success' ||
@@ -165,22 +181,39 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
         ) {
           paymentSuccessRef.current = true;
           handlePaymentSuccess(
-            String(response.transaction_id || response.tx_ref || response.id),
+            String(response.transaction_id || response.tx_ref),
             'flutterwave'
           );
         } else {
           setIsLoading(false);
-          closePaymentModal();
         }
       },
-      onClose: () => {
+      onclose: () => {
+        console.log('[Checkout] Flutterwave onclose fired. paymentSuccessRef:', paymentSuccessRef.current);
         if (!paymentSuccessRef.current) {
           setIsLoading(false);
           setCancelMsg(true);
           setTimeout(() => setCancelMsg(false), 5000);
         }
       }
-    });
+    };
+
+    console.log('[Checkout] Flutterwave config:', config);
+
+    try {
+      if (typeof (window as any).FlutterwaveCheckout !== 'function') {
+        console.error('[Checkout] FlutterwaveCheckout is not loaded!');
+        setError('Payment system did not load. Please refresh and try again.');
+        setIsLoading(false);
+        return;
+      }
+      (window as any).FlutterwaveCheckout(config);
+      console.log('[Checkout] FlutterwaveCheckout called successfully');
+    } catch (err) {
+      console.error('[Checkout] Flutterwave error:', err);
+      setError('Could not start payment. Please try again.');
+      setIsLoading(false);
+    }
   };
 
   const handlePaymentSuccess = (transaction_id: string, gateway: string) => {
