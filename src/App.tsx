@@ -155,9 +155,29 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
     setCancelMsg(false);
     paymentSuccessRef.current = false;
 
+    const txRef = 'TAHCC_FW_' + Date.now();
+
+    // Store tx_ref in Fluent CRM contact BEFORE opening Flutterwave
+    try {
+      console.log('[Checkout] Storing tx_ref:', txRef, 'for email:', formData.email);
+      const storeRes = await fetch('/api/store-tx-ref', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: formData.email,
+          tx_ref: txRef
+        })
+      });
+      const storeData = await storeRes.json();
+      console.log('[Checkout] tx_ref stored:', storeData);
+    } catch (err) {
+      console.error('[Checkout] Failed to store tx_ref:', err);
+      // Continue to payment anyway. Do not block.
+    }
+
     const config = {
       public_key: import.meta.env.VITE_FLUTTERWAVE_PUBLIC_KEY,
-      tx_ref: 'TAHCC_FW_' + Date.now(),
+      tx_ref: txRef,
       amount: getCurrentPrice(),
       currency: 'NGN',
       payment_options: 'card,ussd,banktransfer',
