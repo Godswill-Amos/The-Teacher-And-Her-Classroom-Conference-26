@@ -22,31 +22,52 @@ export default async function handler(req, res) {
     return res.status(200).json({ received: true });
   }
 
+  console.log('[fw-webhook] Looking for tx_ref:', txRef);
+
   const wpUrl = process.env.WP_URL;
   const wpUser = process.env.WP_USERNAME;
   const wpPass = process.env.WP_APP_PASSWORD;
   const credentials = Buffer.from(wpUser + ':' + wpPass).toString('base64');
 
   try {
-    const findRes = await fetch(
-      wpUrl + '/wp-json/fluent-crm/v2/subscribers?custom_field_search=tx_ref:' + encodeURIComponent(txRef),
+    // Fetch all subscribers with custom values included
+    const allRes = await fetch(
+      wpUrl + '/wp-json/fluent-crm/v2/subscribers?per_page=100&with[]=custom_values',
       { headers: { 'Authorization': 'Basic ' + credentials } }
     );
-    const findData = await findRes.json();
+    const allData = await allRes.json();
 
-    let contact = findData?.subscribers?.data?.find(c =>
-      c.custom_values && c.custom_values.tx_ref === txRef
-    );
+    console.log('[fw-webhook] Total subscribers fetched:', allData?.subscribers?.data?.length || 0);
 
-    if (!contact) {
-      const allRes = await fetch(
-        wpUrl + '/wp-json/fluent-crm/v2/subscribers?per_page=50&order_by=created_at&order=DESC',
-        { headers: { 'Authorization': 'Basic ' + credentials } }
-      );
-      const allData = await allRes.json();
-      contact = allData?.subscribers?.data?.find(c =>
-        c.custom_values && c.custom_values.tx_ref === txRef
-      );
+    if (allData?.subscribers?.data?.[0]) {
+      const sample = allData.subscribers.data[0];
+      console.log('[fw-webhook] Sample contact keys:', Object.keys(sample));
+      console.log('[fw-webhook] Sample custom_values:', JSON.stringify(sample.custom_values));
+    }
+
+    let contact = allData?.subscribers?.data?.find(c => {
+      const cv = c.custom_values || {};
+      return cv.tx_ref === txRef || cv.transaction_reference === txRef;
+    });
+
+    // Fallback: fetch each contact's full record individually if list view doesn't include custom_values
+    if (!contact && allData?.subscribers?.data) {
+      console.log('[fw-webhook] No match in list view, trying individual lookups...');
+      for (const c of allData.subscribers.data.slice(0, 30)) {
+        const detailRes = await fetch(
+          wpUrl + '/wp-json/fluent-crm/v2/subscribers/' + c.id,
+          { headers: { 'Authorization': 'Basic ' + credentials } }
+        );
+        const detailData = await detailRes.json();
+        const detailContact = detailData?.subscriber;
+        if (detailContact?.custom_values?.tx_ref === txRef ||
+            detailContact?.custom_values?.transaction_reference === txRef) {
+          contact = detailContact;
+          console.log('[fw-webhook] Found contact via individual lookup:', c.id);
+          console.log('[fw-webhook] Detail custom_values:', JSON.stringify(detailContact.custom_values));
+          break;
+        }
+      }
     }
 
     if (!contact) {
@@ -80,9 +101,9 @@ export default async function handler(req, res) {
     );
 
     const updateData = await updateRes.json();
-    console.log('[fw-webhook] Updated contact', contact.id, 'with tags:', tagsToAdd);
+    console.log('[fw-webhook] Update response:', JSON.stringify(updateData));
 
-    return res.status(200).json({ received: true, success: true });
+    return res.status(200).json({ received: true, success: true, contact_id: contact.id });
 
   } catch (err) {
     console.error('[fw-webhook] Error:', err);
