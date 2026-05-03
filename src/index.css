@@ -23,6 +23,41 @@
   --color-border-red: rgba(249,115,22,0.4);
 }
 
+@keyframes scrollTestimonials {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+.testimonial-track {
+  display: flex;
+  gap: 24px;
+  animation: scrollTestimonials 60s linear infinite;
+  width: max-content;
+}
+
+.testimonial-carousel {
+  width: 100%;
+  overflow: hidden;
+  mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    black 8%,
+    black 92%,
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    black 8%,
+    black 92%,
+    transparent 100%
+  );
+}
+
+.testimonial-track:hover {
+  animation-play-state: paused;
+}
+
 @layer base {
   body {
     @apply bg-bg-dark text-text-white font-sans antialiased;

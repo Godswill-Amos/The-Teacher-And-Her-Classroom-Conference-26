@@ -870,6 +870,81 @@ Through his work, he equips teachers with the tools and mindset to deliver impac
   );
 };
 
+const testimonials = [
+  {
+    quote: 'I recently got a government teaching job and was sent to a typical rural environment. The conference encouraged me not to give up but to apply what I already know as a digital teacher in the traditional classroom.',
+    attribution: 'Naomi D. · 2025 Attendee'
+  },
+  {
+    quote: 'I resigned recently because my take home was not helping anymore. The 4 shifts brought hope to me, that I can still be a teacher from anywhere.',
+    attribution: 'Gladys E. · 2025 Attendee'
+  },
+  {
+    quote: 'I learnt that I am not just a classroom teacher. I am a teacher of the World. I am a world-class Teacher.',
+    attribution: 'Gabriel O. · 2025 Attendee'
+  },
+  {
+    quote: 'I have been struggling with going into the online teaching space. I had my view, which I now see as myopic, and I am spurred to go out there and do exploits.',
+    attribution: 'Ifeoma V. · 2025 Attendee'
+  },
+  {
+    quote: 'I learnt that my locality should not limit me. I can teach from anywhere because teaching is borderless.',
+    attribution: 'Philip U. · 2025 Attendee'
+  },
+  {
+    quote: 'All the speakers caused a mind shift in me and challenged me to take action.',
+    attribution: 'Alice E. · 2025 Attendee'
+  }
+];
+
+const TestimonialsSection = () => (
+  <section className="bg-[#0f0d0b] py-20 border-y border-border-custom overflow-hidden">
+    <div className="max-w-[1000px] mx-auto text-center mb-16 px-5">
+      <motion.div 
+        initial={{ opacity: 0, y: 24 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true }}
+      >
+        <div className="inline-block font-mono text-[10px] font-bold tracking-[0.2em] uppercase text-primary-orange mb-3 px-2.5 py-1 border-l-3 border-primary-orange">
+          Words From Past Attendees
+        </div>
+        <h2 className="text-3xl md:text-5xl text-text-white mb-4 font-display">Real Teachers. Real Transformation.</h2>
+        <p className="text-base md:text-lg text-text-muted max-w-[600px] mx-auto font-sans">
+          Here is what teachers are saying about the conference experience.
+        </p>
+      </motion.div>
+    </div>
+
+    <div className="testimonial-carousel">
+      <div className="testimonial-track">
+        {[...testimonials, ...testimonials].map((t, i) => (
+          <div 
+            key={i}
+            className="w-[280px] md:w-[380px] bg-[#221c15] border border-[rgba(249,115,22,0.12)] p-8 rounded-[6px] shrink-0 flex flex-col justify-between"
+          >
+            <div>
+              <div className="text-primary-orange mb-6">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M14.017 21L14.017 18C14.017 16.8954 14.9124 16 16.017 16H19.017C20.1216 16 21.017 16.8954 21.017 18V21C21.017 22.1046 20.1216 23 19.017 23H16.017C14.9124 23 14.017 22.1046 14.017 21ZM14.017 21C14.017 14.462 16.515 9.4 21.017 6V3C16.969 5.89 14.017 10.999 14.017 18V21ZM2.983 21L2.983 18C2.983 16.8954 3.87844 16 4.983 16H7.983C9.08756 16 9.983 16.8954 9.983 18V21C9.983 22.1046 9.08756 23 7.983 23H4.983C3.87844 23 2.983 22.1046 2.983 21ZM2.983 21C2.983 14.462 5.481 9.4 9.983 6V3C5.935 5.89 2.983 10.999 2.983 18V21Z" />
+                </svg>
+              </div>
+              <p className="font-sans italic text-[15px] leading-[1.7] text-text-white/90">
+                "{t.quote}"
+              </p>
+            </div>
+            
+            <div className="mt-8 pt-6 border-t border-white/5">
+              <span className="font-mono text-[11px] text-primary-orange uppercase tracking-wider font-bold">
+                {t.attribution}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+);
+
 const LearnSection = () => (
   <section className="bg-bg-mid py-16 px-5 border-y border-border-custom">
     <div className="max-w-[1000px] mx-auto">
@@ -1341,6 +1416,7 @@ export default function App() {
         <HostSection />
         <SpeakersSection />
         <LearnSection />
+        <TestimonialsSection />
         <ComparisonTable />
         <PricingSection onOpenCheckout={() => setIsCheckoutOpen(true)} />
         <GuaranteeSection />
