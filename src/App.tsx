@@ -151,6 +151,26 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
     console.log('[Checkout] Public key set?', !!import.meta.env.VITE_FLUTTERWAVE_PUBLIC_KEY);
 
     setIsLoading(true);
+
+    // Check for duplicate payment
+    try {
+      const checkRes = await fetch('/api/check-payment-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: formData.email })
+      });
+      const checkData = await checkRes.json();
+
+      if (checkData.paid) {
+        setIsLoading(false);
+        setError('You have already registered with this email! Check your inbox for the welcome details. If you cannot find them, please contact us on WhatsApp.');
+        return;
+      }
+    } catch (err) {
+      console.error('[Checkout] Could not verify payment status:', err);
+      // Fail open: continue with payment if check fails so we do not block legitimate users
+    }
+
     setError(null);
     setCancelMsg(false);
     paymentSuccessRef.current = false;
@@ -236,10 +256,17 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
     }
   };
 
-  const handlePaymentSuccess = (transaction_id: string, gateway: string) => {
-    setIsLoading(true);
-    const redirectUrl = `/thankyou.html?ref=${transaction_id}&gateway=${gateway}`;
-    window.location.href = redirectUrl;
+  const handlePaymentSuccess = async (reference: string, gateway: string) => {
+    const redirectUrl = `/thankyou.html?ref=${reference}&gateway=${gateway}`;
+
+    try {
+      // Optional: ping verify endpoint (do not block redirect on it)
+      fetch(`/api/verify-flutterwave?transaction_id=${reference}`).catch(() => {});
+      window.location.href = redirectUrl;
+    } catch (err) {
+      console.error('[Checkout] Redirect error:', err);
+      window.location.href = redirectUrl;
+    }
   };
 
   return (
