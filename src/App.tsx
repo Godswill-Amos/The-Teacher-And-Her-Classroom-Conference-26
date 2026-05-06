@@ -35,7 +35,6 @@ import {
   Share2
 } from 'lucide-react';
 
-import { useFlutterwave, closePaymentModal } from 'flutterwave-react-v3';
 import PhoneInput from 'react-phone-input-2';
 import 'react-phone-input-2/lib/style.css';
 
@@ -64,7 +63,7 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
   // FIX 1: Add paymentSuccessRef to track payment success across closures
   const paymentSuccessRef = React.useRef(false);
 
-  const effectivePublicKey = import.meta.env.VITE_FLUTTERWAVE_PUBLIC_KEY;
+  const paystackPublicKey = import.meta.env.VITE_PAYSTACK_PUBLIC_KEY;
   const [cancelMsg, setCancelMsg] = useState(false);
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
 
@@ -108,7 +107,7 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
     }
   }, [isOpen]);
 
-  // Safety net: Clear isLoading if Flutterwave fails to trigger
+  // Safety net: Clear isLoading if Paystack fails to trigger
   useEffect(() => {
     let timeout: any;
     if (isLoading && !paymentSuccessRef.current) {
@@ -124,31 +123,11 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
   const formatted = formatPrice(price);
   const isEarlyBird = new Date() < EARLY_BIRD_END;
 
-  const flutterwaveConfig = React.useMemo(() => ({
-    public_key: effectivePublicKey || '',
-    tx_ref: 'TAHCC_FW_' + Date.now(),
-    amount: price,
-    currency: 'NGN',
-    payment_options: 'card,mobilemoney,ussd,account,banktransfer',
-    customer: {
-      email: formData.email,
-      phone_number: formData.phone,
-      name: formData.name,
-    },
-    customizations: {
-      title: 'The Teacher & Her Classroom',
-      description: `Registration for ${formatted} package`,
-      logo: 'https://www.theteacherandherclassroom.ng/wp-content/uploads/2024/01/logo.png',
-    },
-  }), [price, formData, effectivePublicKey, formatted]);
-
-  const handleFlutterwavePayment = useFlutterwave(flutterwaveConfig);
-
   const handlePaymentStart = async () => {
     console.log('[Checkout] handlePaymentStart called');
     console.log('[Checkout] formData:', formData);
-    console.log('[Checkout] FlutterwaveCheckout available?', typeof (window as any).FlutterwaveCheckout);
-    console.log('[Checkout] Public key set?', !!import.meta.env.VITE_FLUTTERWAVE_PUBLIC_KEY);
+    console.log('[Checkout] Paystack SDK loaded?', !!(window as any).PaystackPop);
+    console.log('[Checkout] Public key set?', !!paystackPublicKey);
 
     setIsLoading(true);
 
@@ -175,82 +154,62 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
     setCancelMsg(false);
     paymentSuccessRef.current = false;
 
-    const txRef = 'TAHCC_FW_' + Date.now();
+    const reference = `TAHCC_PS_${Date.now()}`;
 
-    // Store tx_ref in Fluent CRM contact BEFORE opening Flutterwave
+    // Store tx_ref in Fluent CRM contact BEFORE opening Paystack
     try {
-      console.log('[Checkout] Storing tx_ref:', txRef, 'for email:', formData.email);
-      const storeRes = await fetch('/api/store-tx-ref', {
+      console.log('[Checkout] Storing tx_ref:', reference, 'for email:', formData.email);
+      await fetch('/api/store-tx-ref', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: formData.email,
-          tx_ref: txRef
+          tx_ref: reference
         })
       });
-      const storeData = await storeRes.json();
-      console.log('[Checkout] tx_ref stored:', storeData);
     } catch (err) {
       console.error('[Checkout] Failed to store tx_ref:', err);
-      // Continue to payment anyway. Do not block.
     }
 
-    const config = {
-      public_key: import.meta.env.VITE_FLUTTERWAVE_PUBLIC_KEY,
-      tx_ref: txRef,
-      amount: getCurrentPrice(),
-      currency: 'NGN',
-      payment_options: 'card,ussd,banktransfer',
-      redirect_url: window.location.origin + '/thankyou.html',
-      customer: {
-        email: formData.email,
-        phone_number: formData.phone,
-        name: formData.name
-      },
-      customizations: {
-        title: 'The Teacher & Her Classroom',
-        description: `Registration for ${formatted} package`,
-        logo: 'https://www.theteacherandherclassroom.ng/wp-content/uploads/2024/01/logo.png'
-      },
-      callback: (response: any) => {
-        console.log('[Checkout] Flutterwave callback:', response);
-        if (
-          response.status === 'successful' ||
-          response.status === 'success' ||
-          response.status === 'completed'
-        ) {
-          paymentSuccessRef.current = true;
-          handlePaymentSuccess(
-            String(response.transaction_id || response.tx_ref),
-            'flutterwave'
-          );
-        } else {
-          setIsLoading(false);
-        }
-      },
-      onclose: () => {
-        console.log('[Checkout] Flutterwave onclose fired. paymentSuccessRef:', paymentSuccessRef.current);
-        if (!paymentSuccessRef.current) {
-          setIsLoading(false);
-          setCancelMsg(true);
-          setTimeout(() => setCancelMsg(false), 5000);
-        }
-      }
-    };
-
-    console.log('[Checkout] Flutterwave config:', config);
+    const PaystackPop = (window as any).PaystackPop;
+    if (!PaystackPop) {
+      console.error('[Checkout] Paystack SDK not loaded');
+      setError('Payment system did not load. Please refresh the page.');
+      setIsLoading(false);
+      return;
+    }
 
     try {
-      if (typeof (window as any).FlutterwaveCheckout !== 'function') {
-        console.error('[Checkout] FlutterwaveCheckout is not loaded!');
-        setError('Payment system did not load. Please refresh and try again.');
-        setIsLoading(false);
-        return;
-      }
-      (window as any).FlutterwaveCheckout(config);
-      console.log('[Checkout] FlutterwaveCheckout called successfully');
+      const handler = PaystackPop.setup({
+        key: paystackPublicKey,
+        email: formData.email,
+        amount: price * 100, // Paystack expects amount in kobo
+        currency: 'NGN',
+        ref: reference,
+        metadata: {
+          custom_fields: [
+            { display_name: 'Full Name', variable_name: 'full_name', value: formData.name },
+            { display_name: 'Phone', variable_name: 'phone', value: formData.phone }
+          ]
+        },
+        callback: function(response: any) {
+          console.log('[Checkout] Paystack callback:', response);
+          paymentSuccessRef.current = true;
+          handlePaymentSuccess(response.reference, 'paystack');
+        },
+        onClose: function() {
+          console.log('[Checkout] Paystack onClose fired. paymentSuccessRef:', paymentSuccessRef.current);
+          if (!paymentSuccessRef.current) {
+            setIsLoading(false);
+            setCancelMsg(true);
+            setTimeout(() => setCancelMsg(false), 5000);
+          }
+        }
+      });
+
+      handler.openIframe();
     } catch (err) {
-      console.error('[Checkout] Flutterwave error:', err);
+      console.error('[Checkout] Paystack error:', err);
       setError('Could not start payment. Please try again.');
       setIsLoading(false);
     }
@@ -261,7 +220,7 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
 
     try {
       // Optional: ping verify endpoint (do not block redirect on it)
-      fetch(`/api/verify-flutterwave?transaction_id=${reference}`).catch(() => {});
+      fetch(`/api/verify-paystack?reference=${reference}`).catch(() => {});
       window.location.href = redirectUrl;
     } catch (err) {
       console.error('[Checkout] Redirect error:', err);
@@ -357,7 +316,7 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
                     <Lock className="w-5 h-5 text-primary-orange shrink-0" />
                     <div>
                       <div className="text-[11px] font-bold text-text-white uppercase tracking-wider">Safe Checkout</div>
-                      <div className="text-[10px] text-text-muted">Powered by Flutterwave</div>
+                      <div className="text-[10px] text-text-muted">Powered by Paystack</div>
                     </div>
                   </div>
                 </div>
@@ -447,7 +406,7 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
                     {isLoading ? (
                       <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     ) : (
-                      <>Pay {formatted} with Flutterwave <CreditCard className="w-4 h-4" /></>
+                      <>Pay {formatted} with Paystack <CreditCard className="w-4 h-4" /></>
                     )}
                   </button>
 
@@ -599,7 +558,7 @@ const Hero = ({ onScrollToPricing }: { onScrollToPricing: () => void }) => {
           transition={{ delay: 1 }}
           className="mt-8 text-xs text-text-dim font-mono tracking-widest uppercase flex items-center justify-center gap-2"
         >
-          <Lock className="w-3 h-3" /> Secure payment via Flutterwave &nbsp;|&nbsp; Price rises to ₦10,000 on July 1st
+          <Lock className="w-3 h-3" /> Secure payment via Paystack &nbsp;|&nbsp; Price rises to ₦10,000 on July 1st
         </motion.p>
       </div>
     </section>
@@ -1117,7 +1076,7 @@ const PricingSection = ({ onOpenCheckout }: { onOpenCheckout: () => void }) => {
               YES, SECURE MY SPOT NOW →
             </button>
             <p className="text-center mt-3.5 text-xs text-text-dim font-mono flex items-center justify-center gap-2">
-              <Lock className="w-3 h-3" /> Secure payment via Flutterwave &nbsp;|&nbsp; Conference: Aug 20–21, 2026
+              <Lock className="w-3 h-3" /> Secure payment via Paystack &nbsp;|&nbsp; Conference: Aug 20–21, 2026
             </p>
           </div>
         </motion.div>
@@ -1330,7 +1289,7 @@ const FAQSection = () => {
     { q: "What do I need to attend?", a: "Just a phone or laptop and a good internet connection. You do not need any special app or technical skills. We will send you the link before the event starts." },
     { q: "I am not good with technology. Will I be able to follow?", a: "Yes! Everything is explained step by step. We start from the basics. You do not need to know anything about tech before you come." },
     { q: "When will I receive the platform link?", a: "We will send the link to all registered participants before August 20th. You will not miss anything." },
-    { q: "Is my payment safe?", a: "Yes. We use Flutterwave to process all payments. It is one of the most trusted payment platforms in Africa. Your money and your details are safe." }
+    { q: "Is my payment safe?", a: "Yes. We use Paystack to process all payments. It is one of the most trusted payment platforms in Africa. Your money and your details are safe." }
   ];
 
   return (

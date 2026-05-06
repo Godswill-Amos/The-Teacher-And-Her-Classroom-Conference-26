@@ -7,8 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Poppins:wght@300;400;500;600;700&family=Mulish:wght@400;600;700;800&display=swap" rel="stylesheet"/>
-    <script src="https://js.paystack.co/v1/inline.js"></script>
-    <script src="https://checkout.flutterwave.com/v3.js"></script>
+    <script src="https://js.paystack.co/v2/inline.js"></script>
     <style>
         :root {
             --bg-page: #0f0d0b;
@@ -487,7 +486,7 @@
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
                         Safe Checkout
                     </div>
-                    <div class="badge-sub">Powered by Paystack & Flutterwave</div>
+                    <div class="badge-sub">Powered by Paystack</div>
                 </div>
             </div>
         </div>
@@ -513,15 +512,11 @@
                 </div>
 
                 <div class="gateway-selector">
-                    <label class="form-label">SELECT PAYMENT METHOD</label>
-                    <div class="gateway-options">
+                    <label class="form-label">PAYMENT METHOD</label>
+                    <div class="gateway-options" style="grid-template-columns: 1fr;">
                         <button type="button" class="gateway-btn active" data-gateway="paystack">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
-                            PAYSTACK
-                        </button>
-                        <button type="button" class="gateway-btn" data-gateway="flutterwave">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path></svg>
-                            FLUTTERWAVE
+                            PAYSTACK (SECURE)
                         </button>
                     </div>
                 </div>
@@ -608,8 +603,6 @@
 
                 if (selectedGateway === 'paystack') {
                     initiatePaystack(name, email, amount);
-                } else {
-                    initiateFlutterwave(name, email, phone, amount);
                 }
             });
         });
@@ -674,11 +667,11 @@
 
         function initiatePaystack(name, email, amount) {
             const handler = PaystackPop.setup({
-                key: 'PASTE_YOUR_PAYSTACK_PUBLIC_KEY_HERE', 
+                key: 'pk_test_25a3f7af61aceee5f86bf9b9d0d3b9f00e57d41f', 
                 email: email,
                 amount: amount * 100, 
                 currency: 'NGN',
-                ref: 'TAHCC_' + Date.now(),
+                ref: 'TAHCC_PS_' + Date.now(),
                 metadata: {
                     custom_fields: [
                         { display_name: 'Full Name', variable_name: 'full_name', value: name },
@@ -693,34 +686,6 @@
                 }
             });
             handler.openIframe();
-        }
-
-        function initiateFlutterwave(name, email, phone, amount) {
-            FlutterwaveCheckout({
-                public_key: 'FLWPUBK_TEST-80158c07d0d7299afeb9d5d76b4600f5-X',
-                tx_ref: 'TAHCC_FW_' + Date.now(),
-                amount: amount,
-                currency: 'NGN',
-                payment_options: 'card, ussd, banktransfer',
-                customer: {
-                    email: email,
-                    phone_number: phone,
-                    name: name
-                },
-                customizations: {
-                    title: 'The Teacher And Her Classroom Conference 2026',
-                    description: 'Conference Registration',
-                    logo: 'SGE_Logo.png'
-                },
-                callback: function(response) {
-                    if (response.status === 'successful' || response.status === 'success') {
-                        handlePaymentSuccess(response.transaction_id || response.tx_ref, 'flutterwave');
-                    }
-                },
-                onclose: function() {
-                    handlePaymentCancelled();
-                }
-            });
         }
 
         function handlePaymentSuccess(reference, gateway) {
