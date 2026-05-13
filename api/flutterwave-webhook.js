@@ -30,68 +30,49 @@ export default async function handler(req, res) {
   const sgeSecret = process.env.SGE_SECRET;
 
   try {
-    // Step 1: Find the contact by tx_ref using our custom endpoint
-    const findRes = await fetch(
-      wpUrl + '/wp-json/sge/v1/find-by-tx-ref',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-SGE-Secret': sgeSecret
-        },
-        body: JSON.stringify({ tx_ref: txRef })
-      }
-    );
+    const findRes = await fetch(wpUrl + '/wp-json/sge/v1/find-by-tx-ref', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-SGE-Secret': sgeSecret
+      },
+      body: JSON.stringify({ tx_ref: txRef })
+    });
     const findData = await findRes.json();
 
     console.log('[fw-webhook] Find result:', JSON.stringify(findData));
 
     if (!findData.found) {
-      console.log('[fw-webhook] Contact not found for tx_ref:', txRef);
       return res.status(200).json({ received: true, found: false });
     }
 
     const contactId = findData.contact_id;
-    const contactEmail = findData.email;
+    const credentials = Buffer.from(wpUser + ':' + wpPass).toString('base64');
 
-    console.log('[fw-webhook] Found contact:', contactId, 'email:', contactEmail);
-
-    // Step 2: Determine which tags to add based on amount
     const isEarlyBird = amount <= 7000;
     const tagsToAdd = ['Paid - Conference 2026'];
     if (isEarlyBird) tagsToAdd.push('Early Bird');
     else tagsToAdd.push('Standard Price');
 
-    // Step 3: Update the contact via Fluent CRM REST API
-    const credentials = Buffer.from(wpUser + ':' + wpPass).toString('base64');
+    const updateRes = await fetch(wpUrl + '/wp-json/fluent-crm/v2/subscribers/' + contactId, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Basic ' + credentials
+      },
+      body: JSON.stringify({
+        attach_tags: tagsToAdd,
+        detach_tags: ['Checkout Started', 'Checkout Abandoned'],
+        attach_lists: ['Paid Registrants 2026']
+      })
+    });
 
-    const updatePayload = {
-      attach_tags: tagsToAdd,
-      detach_tags: ['Checkout Started', 'Checkout Abandoned'],
-      attach_lists: ['Paid Registrants 2026']
-    };
-
-    const updateRes = await fetch(
-      wpUrl + '/wp-json/fluent-crm/v2/subscribers/' + contactId,
-      {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Basic ' + credentials
-        },
-        body: JSON.stringify(updatePayload)
-      }
-    );
-
-    const updateData = await updateRes.json();
-    console.log('[fw-webhook] Update response status:', updateRes.status);
-    console.log('[fw-webhook] Update response body:', JSON.stringify(updateData).substring(0, 500));
+    console.log('[fw-webhook] Update status:', updateRes.status);
 
     return res.status(200).json({
       received: true,
       success: true,
       contact_id: contactId,
-      email: contactEmail,
       tags_applied: tagsToAdd
     });
 
