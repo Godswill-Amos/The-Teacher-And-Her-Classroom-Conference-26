@@ -67,6 +67,30 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
   const [cancelMsg, setCancelMsg] = useState(false);
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
 
+  // Preload and move iframe logic
+  useEffect(() => {
+    if (step === 1 && isOpen) {
+      const preloadedIframe = document.getElementById('fluentform-preload');
+      const placeholder = document.getElementById('fluentform-placeholder');
+      if (preloadedIframe && placeholder && !placeholder.contains(preloadedIframe)) {
+        // Apply visible styles to the iframe before moving it
+        (preloadedIframe as HTMLElement).style.minHeight = '500px';
+        (preloadedIframe as HTMLElement).style.width = '100%';
+        placeholder.appendChild(preloadedIframe);
+      }
+    }
+    return () => {
+      // When modal closes or step changes, move iframe back to hidden container
+      if (step !== 1 || !isOpen) {
+        const preloadedIframe = document.getElementById('fluentform-preload');
+        const hiddenContainer = document.getElementById('fluentform-preload-container');
+        if (preloadedIframe && hiddenContainer && !hiddenContainer.contains(preloadedIframe)) {
+          hiddenContainer.appendChild(preloadedIframe);
+        }
+      }
+    };
+  }, [step, isOpen]);
+
   // Fluent Form Completion Listener
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
@@ -340,36 +364,7 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
                   </div>
 
                   <div className="flex-1 min-h-[500px] relative">
-                    <iframe 
-                      id="fluentform"
-                      src="https://www.theteacherandherclassroom.ng/?ff_landing=3&embedded=1" 
-                      className="w-full h-full min-h-[500px] border-none"
-                      title="Registration Form"
-                      sandbox="allow-forms allow-scripts allow-same-origin allow-popups allow-modals"
-                    />
-                    {!formCompleted && (
-                      <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center pointer-events-none">
-                        <div className="animate-pulse flex flex-col items-center gap-4">
-                          <div className="w-12 h-12 border-4 border-primary-orange/20 border-t-primary-orange rounded-full animate-spin" />
-                          <div className="bg-primary-orange/20 text-primary-orange text-[11px] font-bold uppercase tracking-widest px-4 py-2 rounded-full border border-primary-orange/30">
-                            Loading secure form...
-                          </div>
-                        </div>
-                        <div className="mt-8 pointer-events-auto">
-                          <p className="text-[10px] text-text-dim max-w-[200px] mx-auto leading-relaxed">
-                            Form not loading? <br />
-                            <a 
-                              href="https://www.theteacherandherclassroom.ng/?ff_landing=3" 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="text-primary-orange underline underline-offset-4 hover:text-white transition-colors"
-                            >
-                              Click here to open in new tab
-                            </a>
-                          </p>
-                        </div>
-                      </div>
-                    )}
+                    <div id="fluentform-placeholder" style={{ minHeight: '500px', width: '100%' }} />
                   </div>
                 </div>
               ) : (
@@ -478,21 +473,20 @@ const Hero = ({ onScrollToPricing }: { onScrollToPricing: () => void }) => {
   const videoUrl = "https://www.theteacherandherclassroom.ng/wp-content/uploads/2026/04/215475_tiny.mp4";
 
   return (
-    <section className="relative bg-[#0f0d0b] pt-12 md:pt-16 pb-16 px-5 text-center overflow-hidden min-h-[85vh] flex items-center justify-center">
+    <section className="relative z-10 pt-12 md:pt-16 pb-16 px-5 text-center overflow-hidden min-h-[85vh] flex items-center justify-center">
       {/* Background Video Layer */}
-      <div className="absolute inset-0 z-0">
+      <div className="absolute inset-0 z-[-1] overflow-hidden">
         <video
           autoPlay
           loop
           muted
           playsInline
-          className="w-full h-full object-cover opacity-30 grayscale contrast-125"
-          poster="https://picsum.photos/seed/hero-fallback/1920/1080?blur=10"
+          className="w-full h-full object-cover opacity-40 scale-105"
         >
           <source src={videoUrl} type="video/mp4" />
         </video>
         {/* Overlay to ensure text readability */}
-        <div className="absolute inset-0 bg-gradient-to-b from-[#0f0d0b]/90 via-[#0f0d0b]/50 to-[#0f0d0b]" />
+        <div className="absolute inset-0 bg-gradient-to-b from-bg-dark/80 via-bg-dark/40 to-bg-dark" />
       </div>
 
       <div className="relative z-10 max-w-[1000px] mx-auto">
@@ -1431,6 +1425,31 @@ export default function App() {
       </main>
       <Footer />
       <CheckoutModal isOpen={isCheckoutOpen} onClose={() => setIsCheckoutOpen(false)} />
+      
+      {/* Hidden iframe preloader */}
+      <div
+        id="fluentform-preload-container"
+        style={{
+          position: 'fixed',
+          top: '-9999px',
+          left: '-9999px',
+          width: '1px',
+          height: '1px',
+          visibility: 'hidden',
+          pointerEvents: 'none'
+        }}
+      >
+        <iframe
+          id="fluentform-preload"
+          loading="eager"
+          width="100%"
+          height="500"
+          style={{ border: 'none', background: 'transparent' }}
+          frameBorder="0"
+          src="https://www.theteacherandherclassroom.ng/?ff_landing=3&embedded=1"
+          title="Conference Registration Form"
+        />
+      </div>
     </div>
   );
 }
