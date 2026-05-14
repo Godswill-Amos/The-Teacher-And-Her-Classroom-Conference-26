@@ -61,63 +61,19 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Native Form State
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [isSubmittingForm, setIsSubmittingForm] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+
   // FIX 1: Add paymentSuccessRef to track payment success across closures
   const paymentSuccessRef = React.useRef(false);
 
   const [cancelMsg, setCancelMsg] = useState(false);
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
-
-  // Preload and move iframe logic
-  useEffect(() => {
-    if (step === 1 && isOpen) {
-      const preloadedIframe = document.getElementById('fluentform-preload');
-      const placeholder = document.getElementById('fluentform-placeholder');
-      if (preloadedIframe && placeholder && !placeholder.contains(preloadedIframe)) {
-        // Apply visible styles to the iframe before moving it
-        (preloadedIframe as HTMLElement).style.minHeight = '500px';
-        (preloadedIframe as HTMLElement).style.width = '100%';
-        placeholder.appendChild(preloadedIframe);
-      }
-    }
-    return () => {
-      // When modal closes or step changes, move iframe back to hidden container
-      if (step !== 1 || !isOpen) {
-        const preloadedIframe = document.getElementById('fluentform-preload');
-        const hiddenContainer = document.getElementById('fluentform-preload-container');
-        if (preloadedIframe && hiddenContainer && !hiddenContainer.contains(preloadedIframe)) {
-          hiddenContainer.appendChild(preloadedIframe);
-        }
-      }
-    };
-  }, [step, isOpen]);
-
-  // Fluent Form Completion Listener
-  useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      console.log('[Modal] Received postMessage:', event.data);
-      if (event.data?.type === 'fluentform_submission_success') {
-        const { name, email, phone } = event.data.data || {};
-
-        // Skip empty submissions
-        if (!email || !email.trim()) {
-          console.log('[Modal] Skipping empty submission');
-          return;
-        }
-
-        console.log('[Modal] Form data captured:', { name, email, phone });
-        setFormData({ 
-          name: name || '', 
-          email: email || '', 
-          phone: phone || '' 
-        });
-        setFormCompleted(true);
-        setStep(2);
-      }
-    };
-
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
-  }, []);
 
   // Reset state when modal opens/closes
   useEffect(() => {
@@ -127,9 +83,55 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
         setFormCompleted(false);
         setError(null);
         setIsLoading(false);
+        // Reset form fields
+        setFirstName('');
+        setLastName('');
+        setEmail('');
+        setPhone('');
+        setFormError(null);
       }, 300);
     }
   }, [isOpen]);
+
+  const handleFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!firstName.trim() || !lastName.trim() || !email.trim() || !phone.trim()) {
+      setFormError('All fields are required');
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setFormError('Please enter a valid email address');
+      return;
+    }
+
+    setIsSubmittingForm(true);
+    setFormError(null);
+
+    try {
+      const res = await fetch('/api/create-contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, first_name: firstName, last_name: lastName, phone })
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        setFormData({ name: `${firstName} ${lastName}`.trim(), email, phone });
+        setFormCompleted(true);
+        setStep(2);
+      } else {
+        setFormError(data.error || 'Could not save your details. Please try again.');
+      }
+    } catch (err) {
+      console.error('[Form] Submit error:', err);
+      setFormError('Network error. Please try again.');
+    } finally {
+      setIsSubmittingForm(false);
+    }
+  };
 
   // Safety net: Clear isLoading if Flutterwave fails to trigger
   useEffect(() => {
@@ -363,8 +365,73 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
                     <p className="text-sm text-text-muted">Fill the form below to lock in your details. We'll use this to send your tickets.</p>
                   </div>
 
-                  <div className="flex-1 min-h-[500px] relative">
-                    <div id="fluentform-placeholder" style={{ minHeight: '500px', width: '100%' }} />
+                  <div className="flex-1 p-8 pt-0">
+                    <form onSubmit={handleFormSubmit} className="flex flex-col gap-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="flex flex-col gap-1.5">
+                          <label className="font-mono text-[12px] uppercase tracking-wider text-text-white">First Name *</label>
+                          <input
+                            type="text"
+                            value={firstName}
+                            onChange={(e) => setFirstName(e.target.value)}
+                            placeholder="Enter your first name"
+                            className="bg-[#221c15] text-[#fdf5ee] border border-primary-orange/20 rounded-[4px] px-4 py-3 font-sans focus:outline-none focus:border-primary-orange focus:ring-4 focus:ring-primary-orange/10 transition-all"
+                            required
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          <label className="font-mono text-[12px] uppercase tracking-wider text-text-white">Last Name *</label>
+                          <input
+                            type="text"
+                            value={lastName}
+                            onChange={(e) => setLastName(e.target.value)}
+                            placeholder="Enter your last name"
+                            className="bg-[#221c15] text-[#fdf5ee] border border-primary-orange/20 rounded-[4px] px-4 py-3 font-sans focus:outline-none focus:border-primary-orange focus:ring-4 focus:ring-primary-orange/10 transition-all"
+                            required
+                          />
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="font-mono text-[12px] uppercase tracking-wider text-text-white">Email *</label>
+                        <input
+                          type="email"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          placeholder="you@example.com"
+                          className="bg-[#221c15] text-[#fdf5ee] border border-primary-orange/20 rounded-[4px] px-4 py-3 font-sans focus:outline-none focus:border-primary-orange focus:ring-4 focus:ring-primary-orange/10 transition-all"
+                          required
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="font-mono text-[12px] uppercase tracking-wider text-text-white">Phone *</label>
+                        <input
+                          type="tel"
+                          value={phone}
+                          onChange={(e) => setPhone(e.target.value)}
+                          placeholder="08012345678"
+                          className="bg-[#221c15] text-[#fdf5ee] border border-primary-orange/20 rounded-[4px] px-4 py-3 font-sans focus:outline-none focus:border-primary-orange focus:ring-4 focus:ring-primary-orange/10 transition-all"
+                          required
+                        />
+                      </div>
+                      
+                      {formError && (
+                        <div className="bg-red-500/10 border border-red-500/50 text-red-500 text-xs p-3 rounded-md flex items-center gap-2">
+                          <XCircle className="w-4 h-4" /> {formError}
+                        </div>
+                      )}
+
+                      <button 
+                        type="submit" 
+                        disabled={isSubmittingForm}
+                        className="w-full bg-primary-orange text-white font-display uppercase text-sm tracking-widest py-3.5 rounded-[4px] mt-2 transition-all hover:bg-primary-dark disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg"
+                      >
+                        {isSubmittingForm ? (
+                          <>Submitting... <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /></>
+                        ) : (
+                          'Continue to Payment'
+                        )}
+                      </button>
+                    </form>
                   </div>
                 </div>
               ) : (
@@ -1425,31 +1492,6 @@ export default function App() {
       </main>
       <Footer />
       <CheckoutModal isOpen={isCheckoutOpen} onClose={() => setIsCheckoutOpen(false)} />
-      
-      {/* Hidden iframe preloader */}
-      <div
-        id="fluentform-preload-container"
-        style={{
-          position: 'fixed',
-          top: '-9999px',
-          left: '-9999px',
-          width: '1px',
-          height: '1px',
-          visibility: 'hidden',
-          pointerEvents: 'none'
-        }}
-      >
-        <iframe
-          id="fluentform-preload"
-          loading="eager"
-          width="100%"
-          height="500"
-          style={{ border: 'none', background: 'transparent' }}
-          frameBorder="0"
-          src="https://www.theteacherandherclassroom.ng/?ff_landing=3&embedded=1"
-          title="Conference Registration Form"
-        />
-      </div>
     </div>
   );
 }
