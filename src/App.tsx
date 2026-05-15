@@ -534,27 +534,67 @@ const AnnouncementBar = () => {
   );
 };
 
+const heroBackgrounds = [
+  'https://www.theteacherandherclassroom.ng/wp-content/uploads/2026/05/Bg-1-tthc26.jpg',
+  'https://www.theteacherandherclassroom.ng/wp-content/uploads/2026/05/Bg-2-tthc26.jpg',
+  'https://www.theteacherandherclassroom.ng/wp-content/uploads/2026/05/Bg-3-tthc26.jpg'
+];
+
 const Hero = ({ onScrollToPricing }: { onScrollToPricing: () => void }) => {
-  const price = getCurrentPrice();
-  const formatted = formatPrice(price);
-  const videoUrl = "https://www.theteacherandherclassroom.ng/wp-content/uploads/2026/04/215475_tiny.mp4";
+  const [currentBgIndex, setCurrentBgIndex] = React.useState(0);
+
+  // Preload images
+  React.useEffect(() => {
+    heroBackgrounds.forEach((src) => {
+      const img = new Image();
+      img.src = src;
+    });
+  }, []);
+
+  // Slideshow interval
+  React.useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentBgIndex((prev) => (prev + 1) % heroBackgrounds.length);
+    }, 5000); // Change every 5 seconds
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <section className="relative z-10 pt-12 md:pt-16 pb-16 px-5 text-center overflow-hidden min-h-[85vh] flex items-center justify-center">
-      {/* Background Video Layer */}
-      <div className="absolute inset-0 z-[-1] overflow-hidden">
-        <video
-          autoPlay
-          loop
-          muted
-          playsInline
-          className="w-full h-full object-cover opacity-40 scale-105"
-        >
-          <source src={videoUrl} type="video/mp4" />
-        </video>
-        {/* Overlay to ensure text readability */}
-        <div className="absolute inset-0 bg-gradient-to-b from-bg-dark/80 via-bg-dark/40 to-bg-dark" />
+      {/* Background Slideshow Layer */}
+      <div style={{
+        position: 'absolute',
+        inset: 0,
+        width: '100%',
+        height: '100%',
+        overflow: 'hidden',
+        zIndex: 0
+      }}>
+        {heroBackgrounds.map((src, index) => (
+          <div
+            key={src}
+            style={{
+              position: 'absolute',
+              inset: 0,
+              backgroundImage: `url(${src})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              opacity: currentBgIndex === index ? 1 : 0,
+              transition: 'opacity 2s ease-in-out',
+              willChange: 'opacity'
+            }}
+          />
+        ))}
       </div>
+
+      {/* Dark Overlay for Readability */}
+      <div style={{
+        position: 'absolute',
+        inset: 0,
+        background: 'linear-gradient(180deg, rgba(15,13,11,0.85) 0%, rgba(15,13,11,0.7) 50%, rgba(15,13,11,0.85) 100%)',
+        zIndex: 1,
+        pointerEvents: 'none'
+      }} />
 
       <div className="relative z-10 max-w-[1000px] mx-auto">
         <motion.div 
@@ -589,7 +629,7 @@ const Hero = ({ onScrollToPricing }: { onScrollToPricing: () => void }) => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2, duration: 0.8 }}
-          className="text-xl md:text-2xl text-text-muted max-w-[720px] mx-auto mb-6 md:mb-8 font-normal leading-snug"
+          className="text-xl md:text-2xl text-[#fdf5ee]/85 max-w-[720px] mx-auto mb-6 md:mb-8 font-normal leading-snug"
         >
           Join Nigeria's most practical teacher conference. 2 days to get the tools you need for the modern classroom.
         </motion.p>
@@ -606,7 +646,7 @@ const Hero = ({ onScrollToPricing }: { onScrollToPricing: () => void }) => {
             { icon: MapPin, text: "Virtual Event" },
             { icon: Users, text: "3 Expert Speakers" }
           ].map((item, i) => (
-            <div key={i} className="flex items-center gap-3 font-mono text-xs md:text-sm text-text-muted tracking-wider group">
+            <div key={i} className="flex items-center gap-3 font-mono text-xs md:text-sm text-[#fdf5ee]/70 tracking-wider group">
               <item.icon className="w-4 h-4 text-primary-orange group-hover:scale-110 transition-transform" />
               {item.text}
             </div>
