@@ -45,7 +45,7 @@ const EARLY_BIRD_PRICE = 7000;
 const REGULAR_PRICE = 10000;
 
 function getCurrentPrice() {
-  return new Date() < EARLY_BIRD_END ? EARLY_BIRD_PRICE : REGULAR_PRICE;
+  return REGULAR_PRICE;
 }
 
 function formatPrice(amount: number) {
@@ -330,7 +330,7 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
                     <span className="text-3xl text-primary-orange font-display">{formatted}</span>
                   </div>
                   <p className="text-[11px] text-text-dim mt-2 text-right">
-                    {isEarlyBird ? 'Early bird price.' : 'Standard price'}
+                    Standard price
                   </p>
                 </div>
 
@@ -518,16 +518,12 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
 // --- Components ---
 
 const AnnouncementBar = () => {
-  const price = getCurrentPrice();
-  const formatted = formatPrice(price);
-  const isEarlyBird = new Date() < EARLY_BIRD_END;
-
   return (
     <div className="bg-primary-orange text-white text-center py-2.5 px-5 font-mono text-[13px] font-bold tracking-wider sticky top-0 z-50 shadow-md flex items-center justify-center gap-2">
       <Zap className="w-4 h-4 fill-white animate-pulse" />
-      <span className="md:hidden">Early Bird ends June 30th</span>
+      <span className="md:hidden">REGISTRATION OPEN · SECURE YOUR SEAT AT ₦10,000</span>
       <span className="hidden md:inline">
-        {isEarlyBird ? 'EARLY BIRD ENDS' : 'REGISTRATION OPEN'} <span className="text-bg-dark bg-white/90 px-1.5 py-0.5 rounded-xs mx-1">JUNE 30TH</span> · LOCK IN YOUR SPOT AT <span className="text-bg-dark bg-white/90 px-1.5 py-0.5 rounded-xs mx-1">{formatted}</span> BEFORE PRICE RISES TO ₦10,000
+        REGISTRATION OPEN · SECURE YOUR SEAT AT <span className="text-bg-dark bg-white/90 px-1.5 py-0.5 rounded-xs mx-1">₦10,000</span> · CONFERENCE STARTS AUGUST 20TH
       </span>
       <Zap className="w-4 h-4 fill-white animate-pulse hidden md:block" />
     </div>
@@ -679,7 +675,7 @@ const Hero = ({ onScrollToPricing }: { onScrollToPricing: () => void }) => {
           transition={{ delay: 1 }}
           className="mt-8 text-xs text-text-dim font-mono tracking-widest uppercase flex items-center justify-center gap-2"
         >
-          <Lock className="w-3 h-3" /> Secure payment via Flutterwave &nbsp;|&nbsp; Price rises to ₦10,000 on July 1st
+          <Lock className="w-3 h-3" /> Secure payment via Flutterwave &nbsp;|&nbsp; Conference starts August 20th · Limited seats remaining
         </motion.p>
       </div>
     </section>
@@ -1135,14 +1131,13 @@ const ComparisonTable = () => (
 const PricingSection = ({ onOpenCheckout }: { onOpenCheckout: () => void }) => {
   const price = getCurrentPrice();
   const formatted = formatPrice(price);
-  const isEarlyBird = new Date() < EARLY_BIRD_END;
 
   return (
     <section className="bg-bg-mid py-20 px-5 border-y border-border-custom" id="register">
       <div className="max-w-[1000px] mx-auto text-center">
         <div className="inline-block font-mono text-[10px] font-bold tracking-[0.2em] uppercase text-primary-orange mb-3 px-2.5 py-1 border-l-3 border-primary-orange">How Much Does It Cost</div>
         <h2 className="text-3xl md:text-5xl text-text-white mb-3.5">Get Your Spot Today</h2>
-        <p className="text-base text-text-muted max-w-[580px] mx-auto mb-10">The early bird price will not last. Sign up before June ends and save ₦3,000.</p>
+        <p className="text-base text-text-muted max-w-[580px] mx-auto mb-10">Secure your seat today and join us for Nigeria's most practical teacher conference.</p>
         
         <motion.div 
           initial={{ opacity: 0, scale: 0.95 }}
@@ -1153,15 +1148,14 @@ const PricingSection = ({ onOpenCheckout }: { onOpenCheckout: () => void }) => {
           <div className="bg-primary-orange py-4.5 px-7.5 text-center flex items-center justify-center gap-3">
             <Zap className="w-4 h-4 fill-white animate-pulse" />
             <p className="font-mono text-[13px] font-bold tracking-widest uppercase text-[rgba(255,255,255,0.9)]">
-              {isEarlyBird ? 'EARLY BIRD · ENDS JUNE 30TH, 2026' : 'REGISTRATION OPEN'}
+              REGISTRATION OPEN
             </p>
             <Zap className="w-4 h-4 fill-white animate-pulse" />
           </div>
           <div className="p-9 md:p-10 text-left">
-            <div className="font-mono text-[15px] text-text-dim line-through mb-1">Regular Price: ₦10,000</div>
             <div className="font-display text-7xl text-gold leading-none mb-1.5">{formatted}</div>
             <div className="font-mono text-[11px] text-text-muted tracking-wider mb-7">
-              {isEarlyBird ? 'EARLY BIRD PRICE · SAVES YOU ₦3,000 · ENDS JUNE 30TH' : 'STANDARD REGISTRATION PRICE'}
+              STANDARD REGISTRATION PRICE
             </div>
             
             <hr className="border-border-custom mb-6" />
@@ -1182,13 +1176,6 @@ const PricingSection = ({ onOpenCheckout }: { onOpenCheckout: () => void }) => {
                 </li>
               ))}
             </ul>
-            
-            {isEarlyBird && (
-              <div className="bg-[rgba(200,16,46,0.08)] border border-border-red rounded-sm p-3.5 mb-7 text-center flex flex-col items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-primary-orange animate-bounce" />
-                <p className="font-mono text-xs text-primary-orange tracking-wider leading-relaxed">Price goes up to ₦10,000 on July 1st, 2026.<br/>Sign up in May or June to pay only ₦7,000.</p>
-              </div>
-            )}
             
             <button 
               onClick={onOpenCheckout}
@@ -1450,10 +1437,6 @@ const FAQSection = () => {
 };
 
 const FinalCTA = ({ onScrollToPricing }: { onScrollToPricing: () => void }) => {
-  const price = getCurrentPrice();
-  const formatted = formatPrice(price);
-  const isEarlyBird = new Date() < EARLY_BIRD_END;
-
   return (
     <section className="bg-[linear-gradient(160deg,#150f08_0%,#0f0d0b_60%,#1a1208_100%)] py-24 px-5 text-center relative overflow-hidden">
       <div className="absolute bottom-[-100px] left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-[radial-gradient(circle,rgba(249,115,22,0.16)_0%,transparent_70%)] pointer-events-none" />
@@ -1461,7 +1444,7 @@ const FinalCTA = ({ onScrollToPricing }: { onScrollToPricing: () => void }) => {
       <div className="relative z-10">
         <div className="inline-block font-mono text-[10px] font-bold tracking-[0.2em] uppercase text-primary-orange mb-3 px-2.5 py-1 border-l-3 border-primary-orange">Do Not Wait</div>
         <h2 className="text-3xl md:text-5xl lg:text-6xl text-text-white max-w-[800px] mx-auto mb-4">Your Students Need A <span className="text-primary-orange">Future-Ready</span> Teacher.</h2>
-        <p className="text-[17px] text-text-muted max-w-[520px] mx-auto mb-9">The price goes up on July 1st. The conference starts on August 20th. Sign up today and take the first step.</p>
+        <p className="text-[17px] text-text-muted max-w-[520px] mx-auto mb-9">Conference starts August 20th · Limited seats remaining. Sign up today and take the first step.</p>
         <button 
           onClick={onScrollToPricing}
           className="inline-block bg-primary-orange text-white font-mono text-[15px] font-bold tracking-wider uppercase px-13 py-5 rounded-sm transition-all hover:bg-primary-dark hover:-translate-y-0.5 shadow-[0_4px_28px_rgba(249,115,22,0.4)]"
@@ -1469,7 +1452,7 @@ const FinalCTA = ({ onScrollToPricing }: { onScrollToPricing: () => void }) => {
           CLAIM YOUR SEAT TODAY →
         </button>
         <p className="mt-4.5 text-xs text-text-dim font-mono tracking-wider">
-          Price rises to ₦10,000 on July 1st &nbsp;·&nbsp; Powered by Stephanie Global Education
+          Conference starts August 20th · Limited seats remaining &nbsp;·&nbsp; Powered by Stephanie Global Education
         </p>
       </div>
     </section>

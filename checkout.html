@@ -551,7 +551,7 @@
         const REGULAR_PRICE = 10000;
 
         function getCurrentPrice() {
-            return new Date() < EARLY_BIRD_END ? EARLY_BIRD_PRICE : REGULAR_PRICE;
+            return REGULAR_PRICE;
         }
 
         function formatPrice(amount) {
@@ -569,11 +569,7 @@
             document.getElementById('totalAmount').textContent = formatted;
 
             const contextEl = document.getElementById('priceContext');
-            if (new Date() < EARLY_BIRD_END) {
-                contextEl.textContent = 'Early bird price. Goes up to ₦10,000 on July 1st.';
-            } else {
-                contextEl.textContent = 'Standard registration price';
-            }
+            contextEl.textContent = 'Standard registration price';
 
             // Gateway selection
             const gatewayBtns = document.querySelectorAll('.gateway-btn');
@@ -665,9 +661,20 @@
             }
         }
 
-        function initiateFlutterwave(name, email, phone, amount) {
+        async function initiateFlutterwave(name, email, phone, amount) {
+            let publicKey = 'FLWPUBK_TEST-80158c07d0d7299afeb9d5d76b4600f5-X';
+            try {
+                const res = await fetch('/api/config');
+                const config = await res.json();
+                if (config.flutterwave_public_key) {
+                    publicKey = config.flutterwave_public_key;
+                }
+            } catch (err) {
+                console.error('Error fetching config:', err);
+            }
+
             FlutterwaveCheckout({
-                public_key: 'FLWPUBK_TEST-80158c07d0d7299afeb9d5d76b4600f5-X',
+                public_key: publicKey,
                 tx_ref: 'TAHCC_FW_' + Date.now(),
                 amount: amount,
                 currency: 'NGN',
