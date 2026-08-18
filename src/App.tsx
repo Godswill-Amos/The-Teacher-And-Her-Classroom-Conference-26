@@ -519,13 +519,13 @@ const CheckoutModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
 
 const AnnouncementBar = () => {
   return (
-    <div className="bg-primary-orange text-white text-center py-2.5 px-5 font-mono text-[13px] font-bold tracking-wider sticky top-0 z-50 shadow-md flex items-center justify-center gap-2">
-      <Zap className="w-4 h-4 fill-white animate-pulse" />
-      <span className="md:hidden">REGISTRATION OPEN · SECURE YOUR SEAT AT ₦10,000</span>
+    <div className="bg-[#1f1d1b] border-b border-white/10 text-white/90 text-center py-2.5 px-5 font-mono text-[12px] md:text-[13px] font-bold tracking-wider sticky top-0 z-50 shadow-md flex items-center justify-center gap-2">
+      <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+      <span className="md:hidden">REGISTRATION CLOSED · CONFERENCE 2026</span>
       <span className="hidden md:inline">
-        REGISTRATION OPEN · SECURE YOUR SEAT AT <span className="text-bg-dark bg-white/90 px-1.5 py-0.5 rounded-xs mx-1">₦10,000</span> · CONFERENCE STARTS AUGUST 20TH
+        REGISTRATION CLOSED · THE TEACHER & HER CLASSROOM CONFERENCE 2026
       </span>
-      <Zap className="w-4 h-4 fill-white animate-pulse hidden md:block" />
+      <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse hidden md:block" />
     </div>
   );
 };
@@ -655,17 +655,13 @@ const Hero = ({ onScrollToPricing }: { onScrollToPricing: () => void }) => {
           transition={{ delay: 0.4 }}
           className="relative inline-block"
         >
-          <motion.div 
-            animate={{ scale: [1, 1.05, 1] }}
-            transition={{ duration: 2, repeat: Infinity }}
-            className="absolute -inset-1 bg-primary-orange/30 blur-xl rounded-full"
-          />
           <button 
-            onClick={onScrollToPricing}
-            className="relative bg-primary-orange text-white font-mono text-sm md:text-base font-bold tracking-wider uppercase px-10 md:px-14 py-5 md:py-6 rounded-sm transition-all hover:bg-primary-dark hover:-translate-y-1 shadow-[0_10px_40px_rgba(249,115,22,0.4)] flex items-center gap-3 group"
+            disabled
+            aria-disabled="true"
+            className="relative bg-zinc-800 border border-zinc-700 text-zinc-400 font-mono text-sm md:text-base font-bold tracking-wider uppercase px-10 md:px-14 py-5 md:py-6 rounded-sm cursor-not-allowed select-none flex items-center gap-3 shadow-none opacity-80"
           >
-            JOIN THE 2026 CONFERENCE NOW
-            <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+            <Lock className="w-5 h-5 text-zinc-500" />
+            REGISTRATION HAS CLOSED
           </button>
         </motion.div>
         
@@ -675,7 +671,7 @@ const Hero = ({ onScrollToPricing }: { onScrollToPricing: () => void }) => {
           transition={{ delay: 1 }}
           className="mt-8 text-xs text-text-dim font-mono tracking-widest uppercase flex items-center justify-center gap-2"
         >
-          <Lock className="w-3 h-3" /> Secure payment via Flutterwave &nbsp;|&nbsp; Conference starts August 20th · Limited seats remaining
+          <Lock className="w-3 h-3" /> Registration is officially closed &nbsp;|&nbsp; Event Dates: August 20–21, 2026
         </motion.p>
       </div>
     </section>
@@ -738,10 +734,12 @@ const SolutionSection = ({ onScrollToPricing }: { onScrollToPricing: () => void 
         <p className="text-base md:text-lg text-[#b8c8df] mb-3.5 max-w-[620px] mx-auto">That is exactly why <strong className="text-text-white">The Teacher And Her Classroom Conference 2026</strong> was created.</p>
         <p className="text-base md:text-lg text-[#b8c8df] mb-7 max-w-[620px] mx-auto">This is not a boring seminar where you sit and listen and forget everything by Monday. This is a live, hands-on, 2-day virtual workshop made just for Nigerian teachers and school leaders who are ready to stop coping and start growing.</p>
         <button 
-          onClick={onScrollToPricing}
-          className="inline-block bg-primary-orange text-white font-mono text-sm font-bold tracking-wider uppercase px-11 py-4.5 rounded-sm transition-all hover:bg-primary-dark hover:-translate-y-0.5 shadow-[0_4px_28px_rgba(249,115,22,0.4)]"
+          disabled
+          aria-disabled="true"
+          className="inline-flex items-center gap-2 bg-zinc-800 border border-zinc-700 text-zinc-400 font-mono text-sm font-bold tracking-wider uppercase px-11 py-4.5 rounded-sm cursor-not-allowed opacity-80 select-none"
         >
-          I'M READY TO TRANSFORM MY CLASSROOM →
+          <Lock className="w-4 h-4 text-zinc-500" />
+          REGISTRATION CLOSED
         </button>
       </motion.div>
     </section>
@@ -1135,27 +1133,27 @@ const PricingSection = ({ onOpenCheckout }: { onOpenCheckout: () => void }) => {
   return (
     <section className="bg-bg-mid py-20 px-5 border-y border-border-custom" id="register">
       <div className="max-w-[1000px] mx-auto text-center">
-        <div className="inline-block font-mono text-[10px] font-bold tracking-[0.2em] uppercase text-primary-orange mb-3 px-2.5 py-1 border-l-3 border-primary-orange">How Much Does It Cost</div>
-        <h2 className="text-3xl md:text-5xl text-text-white mb-3.5">Get Your Spot Today</h2>
-        <p className="text-base text-text-muted max-w-[580px] mx-auto mb-10">Secure your seat today and join us for Nigeria's most practical teacher conference.</p>
+        <div className="inline-block font-mono text-[10px] font-bold tracking-[0.2em] uppercase text-zinc-400 mb-3 px-2.5 py-1 border-l-3 border-zinc-500">Registration Status</div>
+        <h2 className="text-3xl md:text-5xl text-text-white mb-3.5">Registration Is Closed</h2>
+        <p className="text-base text-text-muted max-w-[580px] mx-auto mb-10">Registration for The Teacher And Her Classroom Conference 2026 has officially ended. Thank you to all who secured their spots.</p>
         
         <motion.div 
           initial={{ opacity: 0, scale: 0.95 }}
           whileInView={{ opacity: 1, scale: 1 }}
           viewport={{ once: true }}
-          className="max-w-[560px] mx-auto bg-bg-card border border-border-red rounded-sm overflow-hidden shadow-[0_0_60px_rgba(249,115,22,0.12)]"
+          className="max-w-[560px] mx-auto bg-bg-card border border-border-custom rounded-sm overflow-hidden shadow-none opacity-90"
         >
-          <div className="bg-primary-orange py-4.5 px-7.5 text-center flex items-center justify-center gap-3">
-            <Zap className="w-4 h-4 fill-white animate-pulse" />
-            <p className="font-mono text-[13px] font-bold tracking-widest uppercase text-[rgba(255,255,255,0.9)]">
-              REGISTRATION OPEN
+          <div className="bg-zinc-800 border-b border-zinc-700 py-4.5 px-7.5 text-center flex items-center justify-center gap-3">
+            <Lock className="w-4 h-4 text-zinc-400" />
+            <p className="font-mono text-[13px] font-bold tracking-widest uppercase text-zinc-300">
+              REGISTRATION CLOSED
             </p>
-            <Zap className="w-4 h-4 fill-white animate-pulse" />
+            <Lock className="w-4 h-4 text-zinc-400" />
           </div>
           <div className="p-9 md:p-10 text-left">
-            <div className="font-display text-7xl text-gold leading-none mb-1.5">{formatted}</div>
-            <div className="font-mono text-[11px] text-text-muted tracking-wider mb-7">
-              STANDARD REGISTRATION PRICE
+            <div className="font-display text-7xl text-zinc-400 leading-none mb-1.5 opacity-60">{formatted}</div>
+            <div className="font-mono text-[11px] text-zinc-500 tracking-wider mb-7">
+              REGISTRATION CLOSED
             </div>
             
             <hr className="border-border-custom mb-6" />
@@ -1168,9 +1166,9 @@ const PricingSection = ({ onOpenCheckout }: { onOpenCheckout: () => void }) => {
                 "Participation Certificate",
                 "Exclusive Community Access"
               ].map((item, i) => (
-                <li key={i} className="flex items-center gap-3 py-2.5 text-[15px] text-[#c8d8ee] border-b border-border-custom last:border-none">
-                  <div className="w-5.5 h-5.5 bg-primary-orange rounded-sm flex items-center justify-center shrink-0">
-                    <Check className="w-3.5 h-3.5 text-white stroke-[3px]" />
+                <li key={i} className="flex items-center gap-3 py-2.5 text-[15px] text-[#c8d8ee]/70 border-b border-border-custom last:border-none">
+                  <div className="w-5.5 h-5.5 bg-zinc-700 rounded-sm flex items-center justify-center shrink-0">
+                    <Check className="w-3.5 h-3.5 text-zinc-400 stroke-[3px]" />
                   </div>
                   {item}
                 </li>
@@ -1178,13 +1176,15 @@ const PricingSection = ({ onOpenCheckout }: { onOpenCheckout: () => void }) => {
             </ul>
             
             <button 
-              onClick={onOpenCheckout}
-              className="block w-full bg-primary-orange text-white text-center font-mono text-[15px] font-bold tracking-wider uppercase py-5 rounded-sm transition-all hover:bg-primary-dark hover:-translate-y-0.5 shadow-[0_4px_28px_rgba(249,115,22,0.4)]"
+              disabled
+              aria-disabled="true"
+              className="block w-full bg-zinc-800 border border-zinc-700 text-zinc-400 text-center font-mono text-[15px] font-bold tracking-wider uppercase py-5 rounded-sm cursor-not-allowed opacity-80 select-none flex items-center justify-center gap-2"
             >
-              YES, SECURE MY SPOT NOW →
+              <Lock className="w-4 h-4 text-zinc-500" />
+              REGISTRATION HAS CLOSED
             </button>
             <p className="text-center mt-3.5 text-xs text-text-dim font-mono flex items-center justify-center gap-2">
-              <Lock className="w-3 h-3" /> Secure payment via Flutterwave &nbsp;|&nbsp; Conference: Aug 20–21, 2026
+              <Lock className="w-3 h-3" /> Registration is closed &nbsp;|&nbsp; Conference: Aug 20–21, 2026
             </p>
           </div>
         </motion.div>
@@ -1439,20 +1439,22 @@ const FAQSection = () => {
 const FinalCTA = ({ onScrollToPricing }: { onScrollToPricing: () => void }) => {
   return (
     <section className="bg-[linear-gradient(160deg,#150f08_0%,#0f0d0b_60%,#1a1208_100%)] py-24 px-5 text-center relative overflow-hidden">
-      <div className="absolute bottom-[-100px] left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-[radial-gradient(circle,rgba(249,115,22,0.16)_0%,transparent_70%)] pointer-events-none" />
+      <div className="absolute bottom-[-100px] left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-[radial-gradient(circle,rgba(249,115,22,0.08)_0%,transparent_70%)] pointer-events-none" />
       
       <div className="relative z-10">
-        <div className="inline-block font-mono text-[10px] font-bold tracking-[0.2em] uppercase text-primary-orange mb-3 px-2.5 py-1 border-l-3 border-primary-orange">Do Not Wait</div>
-        <h2 className="text-3xl md:text-5xl lg:text-6xl text-text-white max-w-[800px] mx-auto mb-4">Your Students Need A <span className="text-primary-orange">Future-Ready</span> Teacher.</h2>
-        <p className="text-[17px] text-text-muted max-w-[520px] mx-auto mb-9">Conference starts August 20th · Limited seats remaining. Sign up today and take the first step.</p>
+        <div className="inline-block font-mono text-[10px] font-bold tracking-[0.2em] uppercase text-zinc-400 mb-3 px-2.5 py-1 border-l-3 border-zinc-500">Notice</div>
+        <h2 className="text-3xl md:text-5xl lg:text-6xl text-text-white max-w-[800px] mx-auto mb-4">Empowering Teachers for the <span className="text-primary-orange">Modern Classroom.</span></h2>
+        <p className="text-[17px] text-text-muted max-w-[520px] mx-auto mb-9">Registration for the 2026 conference has officially ended. Thank you to all our attendees!</p>
         <button 
-          onClick={onScrollToPricing}
-          className="inline-block bg-primary-orange text-white font-mono text-[15px] font-bold tracking-wider uppercase px-13 py-5 rounded-sm transition-all hover:bg-primary-dark hover:-translate-y-0.5 shadow-[0_4px_28px_rgba(249,115,22,0.4)]"
+          disabled
+          aria-disabled="true"
+          className="inline-flex items-center gap-2 bg-zinc-800 border border-zinc-700 text-zinc-400 font-mono text-[15px] font-bold tracking-wider uppercase px-13 py-5 rounded-sm cursor-not-allowed opacity-80 select-none"
         >
-          CLAIM YOUR SEAT TODAY →
+          <Lock className="w-4 h-4 text-zinc-500" />
+          REGISTRATION CLOSED
         </button>
         <p className="mt-4.5 text-xs text-text-dim font-mono tracking-wider">
-          Conference starts August 20th · Limited seats remaining &nbsp;·&nbsp; Powered by Stephanie Global Education
+          Conference Dates: August 20–21, 2026 &nbsp;·&nbsp; Powered by Stephanie Global Education
         </p>
       </div>
     </section>

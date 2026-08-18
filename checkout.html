@@ -493,47 +493,34 @@
 
         <div class="checkout-form-container">
             <div class="checkout-header">
-                <h1>SECURE CHECKOUT</h1>
-                <p>Fill in your details below to complete your registration.</p>
+                <h1>REGISTRATION CLOSED</h1>
+                <p>Registration for The Teacher And Her Classroom Conference 2026 has officially ended.</p>
+            </div>
+
+            <div style="background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); border-radius: 6px; padding: 16px; margin-bottom: 24px; color: #fca5a5; font-size: 14px; text-align: center;">
+                Conference registration is now closed. No further registrations can be processed.
             </div>
 
             <form id="checkoutForm">
                 <div class="form-group">
                     <label class="form-label" for="fullName">FULL NAME</label>
-                    <input type="text" id="fullName" placeholder="John Doe" required>
+                    <input type="text" id="fullName" placeholder="John Doe" disabled style="opacity: 0.5; cursor: not-allowed;">
                 </div>
                 <div class="form-group">
                     <label class="form-label" for="email">EMAIL ADDRESS</label>
-                    <input type="email" id="email" placeholder="john@example.com" required>
+                    <input type="email" id="email" placeholder="john@example.com" disabled style="opacity: 0.5; cursor: not-allowed;">
                 </div>
                 <div class="form-group">
                     <label class="form-label" for="phone">PHONE NUMBER</label>
-                    <input type="tel" id="phone" placeholder="+234 800 000 0000" required>
+                    <input type="tel" id="phone" placeholder="+234 800 000 0000" disabled style="opacity: 0.5; cursor: not-allowed;">
                 </div>
 
-                <div class="gateway-selector">
-                    <label class="form-label">PAYMENT METHOD</label>
-                    <div class="gateway-options" style="grid-template-columns: 1fr;">
-                        <button type="button" class="gateway-btn active" data-gateway="flutterwave">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path></svg>
-                            FLUTTERWAVE (SECURE)
-                        </button>
-                    </div>
-                </div>
-
-                <div id="formError"></div>
-
-                <button type="submit" class="submit-btn" id="submitBtn">
-                    <span class="spinner" id="btnSpinner"></span>
-                    <span id="btnText">COMPLETE PURCHASE →</span>
+                <button type="button" class="submit-btn" disabled style="background: #3f3f46; color: #a1a1aa; cursor: not-allowed; opacity: 0.7;">
+                    REGISTRATION CLOSED
                 </button>
 
-                <div id="cancelMsg">
-                    It looks like you closed the payment window. Your spot is still waiting. Click Complete Purchase when you are ready.
-                </div>
-
-                <p class="legal-text">
-                    By completing this purchase, you agree to our Terms of Service and Privacy Policy. Your data is processed securely.
+                <p class="legal-text" style="text-align: center; margin-top: 16px;">
+                    Thank you to all who registered. The conference will take place August 20–21, 2026.
                 </p>
             </form>
         </div>
